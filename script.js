@@ -317,7 +317,6 @@ const PAINTINGS = [
 const ASCII_RAMP = ' .·:;+=*%#@█';
 const CELL_W = 10;
 const CELL_H = 16;
-const MOUSE_RADIUS = 250;
 const TRANSITION_DURATION = 2500; // ms
 const PAINTING_HOLD = 5000; // ms between transitions
 
@@ -336,6 +335,12 @@ class AsciiEngine {
         this.lastSwitch = performance.now();
         this.time = 0;
         this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        // Interactive Settings State
+        this.physicsMode = 'vortex';
+        this.glowStyle = 'moon';
+        this.interactionRadius = 250;
+        this.glowRadius = 250;
 
         this._onResize = this.resize.bind(this);
         this._onMouse = this.onMouse.bind(this);
@@ -364,6 +369,21 @@ class AsciiEngine {
             if (e.key === 'ArrowLeft') this.goPrev();
             else if (e.key === 'ArrowRight') this.goNext();
         });
+
+        // Settings Panel Logic
+        const toggleBtn = document.getElementById('settingsToggle');
+        const panel = document.getElementById('settingsPanel');
+        if (toggleBtn && panel) {
+            toggleBtn.addEventListener('click', () => {
+                panel.classList.toggle('collapsed');
+            });
+        }
+
+        // Settings Inputs
+        document.getElementById('physicsMode')?.addEventListener('change', (e) => this.physicsMode = e.target.value);
+        document.getElementById('glowStyle')?.addEventListener('change', (e) => this.glowStyle = e.target.value);
+        document.getElementById('interactionRadius')?.addEventListener('input', (e) => this.interactionRadius = parseInt(e.target.value));
+        document.getElementById('glowRadius')?.addEventListener('input', (e) => this.glowRadius = parseInt(e.target.value));
 
         // Set initial counter
         this.updateCounter(0);
@@ -520,15 +540,30 @@ class AsciiEngine {
             const dy = p.y - my;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
-            if (dist < MOUSE_RADIUS && dist > 0) {
-                const force = ((MOUSE_RADIUS - dist) / MOUSE_RADIUS);
+            if (dist < this.interactionRadius && dist > 0) {
+                const force = ((this.interactionRadius - dist) / this.interactionRadius);
                 const forceSq = force * force;
-                // Vortex swirl physics
-                p.vx += (dy / dist) * forceSq * 15; // Increased force for stronger swirl
-                p.vy -= (dx / dist) * forceSq * 15;
-                // Add a slight pull towards the center to keep it contained
-                p.vx -= (dx / dist) * forceSq * 2;
-                p.vy -= (dy / dist) * forceSq * 2;
+                
+                switch (this.physicsMode) {
+                    case 'repel':
+                        p.vx += (dx / dist) * forceSq * 4;
+                        p.vy += (dy / dist) * forceSq * 4;
+                        break;
+                    case 'attract':
+                        p.vx -= (dx / dist) * forceSq * 4;
+                        p.vy -= (dy / dist) * forceSq * 4;
+                        break;
+                    case 'vortex':
+                        p.vx += (dy / dist) * forceSq * 15;
+                        p.vy -= (dx / dist) * forceSq * 15;
+                        p.vx -= (dx / dist) * forceSq * 2;
+                        p.vy -= (dy / dist) * forceSq * 2;
+                        break;
+                    case 'orbit':
+                        p.vx += (dy / dist) * forceSq * 10;
+                        p.vy -= (dx / dist) * forceSq * 10;
+                        break;
+                }
             }
 
             // Spring back
@@ -570,24 +605,43 @@ class AsciiEngine {
             ctx.fillText(p.char, p.x, p.y);
         }
 
-        // Mouse glow (Moon-like)
+        // Mouse glow
         const mx = this.mouse.x;
         const my = this.mouse.y;
-        if (mx > 0 && my > 0) {
-            // Inner bright core
-            const coreGlow = ctx.createRadialGradient(mx, my, 0, mx, my, MOUSE_RADIUS * 0.15);
-            coreGlow.addColorStop(0, 'rgba(255, 250, 220, 0.4)'); // Bright yellowish-white center
-            coreGlow.addColorStop(1, 'transparent');
-            ctx.fillStyle = coreGlow;
-            ctx.fillRect(mx - MOUSE_RADIUS * 0.15, my - MOUSE_RADIUS * 0.15, MOUSE_RADIUS * 0.3, MOUSE_RADIUS * 0.3);
+        if (mx > 0 && my > 0 && this.glowRadius > 0) {
+            switch (this.glowStyle) {
+                case 'moon':
+                    // Inner bright core
+                    const coreGlow = ctx.createRadialGradient(mx, my, 0, mx, my, this.glowRadius * 0.15);
+                    coreGlow.addColorStop(0, 'rgba(255, 250, 220, 0.4)');
+                    coreGlow.addColorStop(1, 'transparent');
+                    ctx.fillStyle = coreGlow;
+                    ctx.fillRect(mx - this.glowRadius * 0.15, my - this.glowRadius * 0.15, this.glowRadius * 0.3, this.glowRadius * 0.3);
 
-            // Outer soft halo
-            const haloGlow = ctx.createRadialGradient(mx, my, 0, mx, my, MOUSE_RADIUS * 0.8);
-            haloGlow.addColorStop(0, 'rgba(212, 168, 67, 0.15)'); // Stronger gold
-            haloGlow.addColorStop(0.4, 'rgba(212, 168, 67, 0.05)');
-            haloGlow.addColorStop(1, 'transparent');
-            ctx.fillStyle = haloGlow;
-            ctx.fillRect(mx - MOUSE_RADIUS, my - MOUSE_RADIUS, MOUSE_RADIUS * 2, MOUSE_RADIUS * 2);
+                    // Outer soft halo
+                    const moonHalo = ctx.createRadialGradient(mx, my, 0, mx, my, this.glowRadius * 0.8);
+                    moonHalo.addColorStop(0, 'rgba(212, 168, 67, 0.15)');
+                    moonHalo.addColorStop(0.4, 'rgba(212, 168, 67, 0.05)');
+                    moonHalo.addColorStop(1, 'transparent');
+                    ctx.fillStyle = moonHalo;
+                    ctx.fillRect(mx - this.glowRadius, my - this.glowRadius, this.glowRadius * 2, this.glowRadius * 2);
+                    break;
+                case 'halo':
+                    const goldenHalo = ctx.createRadialGradient(mx, my, this.glowRadius * 0.4, mx, my, this.glowRadius);
+                    goldenHalo.addColorStop(0, 'transparent');
+                    goldenHalo.addColorStop(0.5, 'rgba(212, 168, 67, 0.15)');
+                    goldenHalo.addColorStop(1, 'transparent');
+                    ctx.fillStyle = goldenHalo;
+                    ctx.fillRect(mx - this.glowRadius, my - this.glowRadius, this.glowRadius * 2, this.glowRadius * 2);
+                    break;
+                case 'subtle':
+                    const subtleGlow = ctx.createRadialGradient(mx, my, 0, mx, my, this.glowRadius * 0.7);
+                    subtleGlow.addColorStop(0, 'rgba(212, 168, 67, 0.06)');
+                    subtleGlow.addColorStop(1, 'transparent');
+                    ctx.fillStyle = subtleGlow;
+                    ctx.fillRect(mx - this.glowRadius, my - this.glowRadius, this.glowRadius * 2, this.glowRadius * 2);
+                    break;
+            }
         }
 
         ctx.restore();

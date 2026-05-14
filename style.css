@@ -380,3 +380,159 @@ html, body {
     font-weight: 300;
     opacity: 0.6;
 }
+
+/* ---- Settings Panel ---- */
+.settings-panel {
+    position: fixed;
+    top: 1.5rem;
+    right: 1.5rem;
+    z-index: 30;
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.settings-toggle {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1px solid rgba(212, 168, 67, 0.35);
+    background: rgba(10, 10, 15, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: var(--color-gold);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity: 0;
+    animation: subtitleFade 1s ease 2.8s both;
+}
+
+.settings-toggle svg {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.5s ease;
+}
+
+.settings-toggle:hover {
+    background: rgba(212, 168, 67, 0.15);
+    border-color: rgba(212, 168, 67, 0.6);
+    transform: rotate(90deg);
+}
+
+.settings-content {
+    margin-top: 1rem;
+    padding: 1.5rem;
+    background: rgba(10, 10, 15, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(212, 168, 67, 0.25);
+    border-radius: 12px;
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    transform-origin: top right;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    opacity: 1;
+    transform: scale(1);
+}
+
+.settings-panel.collapsed .settings-content {
+    opacity: 0;
+    transform: scale(0.95);
+    pointer-events: none;
+}
+
+.settings-panel.collapsed .settings-toggle svg {
+    transform: rotate(0deg);
+}
+
+.setting-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.setting-group label {
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    color: var(--color-gold);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+/* Custom Select */
+.select-wrapper {
+    position: relative;
+}
+
+.select-wrapper::after {
+    content: '▼';
+    font-size: 0.6rem;
+    color: var(--color-gold-light);
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.setting-group select {
+    width: 100%;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(212, 168, 67, 0.3);
+    border-radius: 6px;
+    padding: 0.6rem 1rem;
+    color: var(--color-cream);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s;
+}
+
+.setting-group select:hover {
+    border-color: rgba(212, 168, 67, 0.6);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.setting-group select option {
+    background: var(--color-dark);
+    color: var(--color-cream);
+}
+
+/* Custom Range Slider */
+.setting-group input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    background: transparent;
+}
+
+.setting-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: var(--color-gold);
+    cursor: pointer;
+    margin-top: -6px;
+    box-shadow: 0 0 10px rgba(212, 168, 67, 0.5);
+    transition: transform 0.1s;
+}
+
+.setting-group input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.setting-group input[type="range"]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 4px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+}

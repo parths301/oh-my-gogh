@@ -11,7 +11,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
 </head>
 
 <body>
@@ -54,6 +54,47 @@
             <span class="counter-total" id="counterTotal">09</span>
         </div>
 
+        <!-- Interactive Settings Panel -->
+        <div class="settings-panel collapsed" id="settingsPanel">
+            <button class="settings-toggle" id="settingsToggle" aria-label="Toggle settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+            </button>
+            <div class="settings-content">
+                <div class="setting-group">
+                    <label for="physicsMode">Physics</label>
+                    <div class="select-wrapper">
+                        <select id="physicsMode">
+                            <option value="vortex" selected>Vortex</option>
+                            <option value="repel">Repel</option>
+                            <option value="attract">Attract</option>
+                            <option value="orbit">Orbit</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label for="glowStyle">Glow Style</label>
+                    <div class="select-wrapper">
+                        <select id="glowStyle">
+                            <option value="moon" selected>Moon</option>
+                            <option value="halo">Golden Halo</option>
+                            <option value="subtle">Subtle</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label for="interactionRadius">Effect Radius</label>
+                    <input type="range" id="interactionRadius" min="50" max="500" value="250">
+                </div>
+                <div class="setting-group">
+                    <label for="glowRadius">Glow Radius</label>
+                    <input type="range" id="glowRadius" min="50" max="500" value="250">
+                </div>
+            </div>
+        </div>
+
         <!-- Bottom Dots -->
         <div class="painting-indicator" id="paintingIndicator">
             <div class="indicator-dot active" data-index="0"></div>
@@ -68,7 +109,7 @@
         </div>
     </div>
 
-    <script src="script.js?v=2"></script>
+    <script src="script.js?v=3"></script>
 </body>
 
 </html>
