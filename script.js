@@ -317,7 +317,7 @@ const PAINTINGS = [
 const ASCII_RAMP = ' .·:;+=*%#@█';
 const CELL_W = 10;
 const CELL_H = 16;
-const MOUSE_RADIUS = 120;
+const MOUSE_RADIUS = 250;
 const TRANSITION_DURATION = 2500; // ms
 const PAINTING_HOLD = 5000; // ms between transitions
 
@@ -523,8 +523,12 @@ class AsciiEngine {
             if (dist < MOUSE_RADIUS && dist > 0) {
                 const force = ((MOUSE_RADIUS - dist) / MOUSE_RADIUS);
                 const forceSq = force * force;
-                p.vx += (dx / dist) * forceSq * 4;
-                p.vy += (dy / dist) * forceSq * 4;
+                // Vortex swirl physics
+                p.vx += (dy / dist) * forceSq * 15; // Increased force for stronger swirl
+                p.vy -= (dx / dist) * forceSq * 15;
+                // Add a slight pull towards the center to keep it contained
+                p.vx -= (dx / dist) * forceSq * 2;
+                p.vy -= (dy / dist) * forceSq * 2;
             }
 
             // Spring back
@@ -566,14 +570,23 @@ class AsciiEngine {
             ctx.fillText(p.char, p.x, p.y);
         }
 
-        // Mouse glow
+        // Mouse glow (Moon-like)
         const mx = this.mouse.x;
         const my = this.mouse.y;
         if (mx > 0 && my > 0) {
-            const glow = ctx.createRadialGradient(mx, my, 0, mx, my, MOUSE_RADIUS * 0.7);
-            glow.addColorStop(0, 'rgba(212,168,67,0.06)');
-            glow.addColorStop(1, 'transparent');
-            ctx.fillStyle = glow;
+            // Inner bright core
+            const coreGlow = ctx.createRadialGradient(mx, my, 0, mx, my, MOUSE_RADIUS * 0.15);
+            coreGlow.addColorStop(0, 'rgba(255, 250, 220, 0.4)'); // Bright yellowish-white center
+            coreGlow.addColorStop(1, 'transparent');
+            ctx.fillStyle = coreGlow;
+            ctx.fillRect(mx - MOUSE_RADIUS * 0.15, my - MOUSE_RADIUS * 0.15, MOUSE_RADIUS * 0.3, MOUSE_RADIUS * 0.3);
+
+            // Outer soft halo
+            const haloGlow = ctx.createRadialGradient(mx, my, 0, mx, my, MOUSE_RADIUS * 0.8);
+            haloGlow.addColorStop(0, 'rgba(212, 168, 67, 0.15)'); // Stronger gold
+            haloGlow.addColorStop(0.4, 'rgba(212, 168, 67, 0.05)');
+            haloGlow.addColorStop(1, 'transparent');
+            ctx.fillStyle = haloGlow;
             ctx.fillRect(mx - MOUSE_RADIUS, my - MOUSE_RADIUS, MOUSE_RADIUS * 2, MOUSE_RADIUS * 2);
         }
 
