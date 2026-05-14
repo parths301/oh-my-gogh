@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,16 +8,24 @@
     <title>Oh my Gogh! — Coming Soon</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <canvas id="asciiCanvas"></canvas>
 
     <div class="overlay" id="overlay">
         <div class="brand-container">
             <h1 class="brand-title" id="brandTitle">
-                <span class="title-word" style="--i:0">O</span><span class="title-word" style="--i:1">h</span><span class="title-space"> </span><span class="title-word" style="--i:2">m</span><span class="title-word" style="--i:3">y</span><span class="title-space"> </span><span class="title-word accent" style="--i:4">G</span><span class="title-word accent" style="--i:5">o</span><span class="title-word accent" style="--i:6">g</span><span class="title-word accent" style="--i:7">h</span><span class="title-word accent" style="--i:8">!</span>
+                <span class="title-word" style="--i:0">O</span><span class="title-word" style="--i:1">h</span><span
+                    class="title-space"> </span><span class="title-word" style="--i:2">m</span><span class="title-word"
+                    style="--i:3">y</span><span class="title-space"> </span><span class="title-word accent"
+                    style="--i:4">G</span><span class="title-word accent" style="--i:5">o</span><span
+                    class="title-word accent" style="--i:6">g</span><span class="title-word accent"
+                    style="--i:7">h</span><span class="title-word accent" style="--i:8">!</span>
             </h1>
             <div class="divider" id="divider"></div>
             <p class="subtitle" id="subtitle">UNDER CONSTRUCTION</p>
@@ -24,12 +33,14 @@
 
         <!-- Side Navigation Arrows -->
         <button class="nav-arrow nav-arrow--left" id="navLeft" aria-label="Previous painting">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                stroke-linejoin="round">
                 <polyline points="15 18 9 12 15 6"></polyline>
             </svg>
         </button>
         <button class="nav-arrow nav-arrow--right" id="navRight" aria-label="Next painting">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                stroke-linejoin="round">
                 <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
         </button>
@@ -57,4 +68,5 @@
 
     <script src="script.js"></script>
 </body>
+
 </html>
