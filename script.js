@@ -337,7 +337,7 @@ class AsciiEngine {
         this.dpr = Math.min(window.devicePixelRatio || 1, 2);
 
         // Interactive Settings State
-        this.physicsMode = 'vortex';
+        this.physicsMode = 'repel';
         this.glowStyle = 'moon';
         this.interactionRadius = 250;
         this.glowRadius = 250;
@@ -563,6 +563,27 @@ class AsciiEngine {
                         p.vx += (dy / dist) * forceSq * 10;
                         p.vy -= (dx / dist) * forceSq * 10;
                         break;
+                    case 'spring':
+                        p.vx += (dx / dist) * forceSq * 25;
+                        p.vy += (dy / dist) * forceSq * 25;
+                        break;
+                    case 'wave':
+                        const waveForce = Math.sin(dist * 0.05 - this.time * 10) * forceSq * 8;
+                        p.vx += (dx / dist) * waveForce;
+                        p.vy += (dy / dist) * waveForce;
+                        break;
+                    case 'scatter':
+                        if (force > 0.7) {
+                            p.vx += (Math.random() - 0.5) * 40;
+                            p.vy += (Math.random() - 0.5) * 40;
+                        }
+                        break;
+                    case 'drag':
+                        p.vx -= (dx / dist) * forceSq * 3;
+                        p.vy -= (dy / dist) * forceSq * 3;
+                        p.vx *= 0.7;
+                        p.vy *= 0.7;
+                        break;
                 }
             }
 
@@ -640,6 +661,47 @@ class AsciiEngine {
                     subtleGlow.addColorStop(1, 'transparent');
                     ctx.fillStyle = subtleGlow;
                     ctx.fillRect(mx - this.glowRadius, my - this.glowRadius, this.glowRadius * 2, this.glowRadius * 2);
+                    break;
+                case 'neon':
+                    const hue = (this.time * 50) % 360;
+                    const neonGlow = ctx.createRadialGradient(mx, my, 0, mx, my, this.glowRadius * 0.5);
+                    neonGlow.addColorStop(0, `hsla(${hue}, 100%, 60%, 0.5)`);
+                    neonGlow.addColorStop(0.5, `hsla(${hue}, 100%, 50%, 0.15)`);
+                    neonGlow.addColorStop(1, 'transparent');
+                    ctx.fillStyle = neonGlow;
+                    ctx.fillRect(mx - this.glowRadius, my - this.glowRadius, this.glowRadius * 2, this.glowRadius * 2);
+                    break;
+                case 'pulse':
+                    const pulse = Math.sin(this.time * 4) * 0.5 + 0.5;
+                    const pRad = this.glowRadius * (0.5 + pulse * 0.5);
+                    const pGlow = ctx.createRadialGradient(mx, my, 0, mx, my, pRad);
+                    pGlow.addColorStop(0, `rgba(220, 80, 80, ${0.15 + pulse * 0.15})`);
+                    pGlow.addColorStop(1, 'transparent');
+                    ctx.fillStyle = pGlow;
+                    ctx.fillRect(mx - pRad, my - pRad, pRad * 2, pRad * 2);
+                    break;
+                case 'spotlight':
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                    ctx.beginPath();
+                    ctx.arc(mx, my, this.glowRadius * 0.35, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+                    ctx.stroke();
+                    break;
+                case 'glitch':
+                    if (Math.random() > 0.15) {
+                        const gRad = this.glowRadius * (0.8 + Math.random() * 0.4);
+                        const glitchGlow = ctx.createRadialGradient(mx, my, 0, mx, my, gRad);
+                        const c = Math.random() > 0.5 ? '0, 255, 255' : '255, 0, 255';
+                        glitchGlow.addColorStop(0, `rgba(${c}, ${0.1 + Math.random() * 0.2})`);
+                        glitchGlow.addColorStop(1, 'transparent');
+                        ctx.fillStyle = glitchGlow;
+                        
+                        const jx = mx + (Math.random() - 0.5) * 20;
+                        const jy = my + (Math.random() - 0.5) * 20;
+                        ctx.fillRect(jx - gRad, jy - gRad, gRad * 2, gRad * 2);
+                    }
                     break;
             }
         }
