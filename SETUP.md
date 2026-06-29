@@ -14,62 +14,56 @@ Browser ──> Vercel (static files + /api functions)
             Supabase (Postgres + RLS + Auth)  ◀── admin reads/writes ── Razorpay
 ```
 
-## 1 · Supabase
+## Live status
 
-1. In your Supabase project, open **SQL Editor → New query**.
-2. Paste and run [`supabase/schema.sql`](supabase/schema.sql) (tables + row-level security).
-3. Paste and run [`supabase/seed.sql`](supabase/seed.sql) (real starting content).
-4. Make yourself an admin so the admin panel can write:
-   ```sql
-   insert into public.admins (email) values ('parthsh.ind@gmail.com');
-   ```
-5. **Auth → Providers → Email**: enable it (the admin signs in with this email).
-6. **Project Settings → API** — copy `Project URL`, the `anon` key, and the
-   `service_role` key (keep the last one secret).
+| Piece | State |
+| --- | --- |
+| Supabase project | **Live** — `oh-my-gogh`, org Sparx, Mumbai (`pauqbjrfnkacxweqnevj.supabase.co`) |
+| Schema + RLS | **Applied & verified** (admin reads/writes work, anon is blocked, drafts hidden — tested live) |
+| Seed content | **Applied** — real copy, 8 products / 4 artists / 4 posts / 6 orders, INR pricing |
+| Admin login | **Created** — `parthsh.ind@gmail.com` (temp password issued, change it after first sign-in) |
+| Vercel project | **Live** — `parths301s-projects/oh-my-gogh`, connected to this GitHub repo (auto-deploys on push to `main`) |
+| Production URL | **https://oh-my-gogh.vercel.app** |
+| Env vars (Supabase + currency + shipping) | **Set** in Vercel (production/preview/development), confirmed live via `/api/config` |
+| Razorpay keys | **Not set yet** — checkout runs in preview/demo mode until added |
+| `ohmygogh.com` domain | Still on GitHub Pages — not switched to Vercel (your call) |
 
-## 2 · Razorpay
+## 1 · Supabase (done — for reference / re-running if needed)
 
-1. Create a Razorpay account → **Settings → API Keys → Generate Test Key**.
+`supabase/schema.sql` and `supabase/seed.sql` were applied directly via the Supabase CLI
+(`supabase db query --linked --file …`), and the admin email was inserted into
+`public.admins`. Both files are idempotent — safe to re-run after editing.
+
+## 2 · Razorpay — the one remaining step
+
+1. Razorpay Dashboard → **Settings → API Keys → Generate Test Key**.
 2. Copy the **Key ID** (`rzp_test_…`) and **Key Secret**.
+3. Hand them to me, or set them yourself:
+   ```
+   vercel env add RAZORPAY_KEY_ID production preview development
+   vercel env add RAZORPAY_KEY_SECRET production preview development
+   ```
+4. Redeploy (`vercel deploy --prod`, or just push to `main`) — checkout goes live.
 
-## 3 · Vercel env vars
+## 3 · Verify
 
-In **Vercel → Project → Settings → Environment Variables**, add (see [`.env.example`](.env.example)):
-
-| Name | Value | Exposed to browser? |
-| --- | --- | --- |
-| `SUPABASE_URL` | your project URL | yes (via `/api/config`) |
-| `SUPABASE_ANON_KEY` | anon key | yes |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role key | **no — secret** |
-| `RAZORPAY_KEY_ID` | `rzp_test_…` | yes |
-| `RAZORPAY_KEY_SECRET` | secret | **no — secret** |
-| `STORE_CURRENCY` | `INR` | yes |
-| `FREE_SHIPPING_OVER` | `2000` | — |
-| `FLAT_SHIPPING` | `99` | — |
-
-> Don't paste the two secret values into chat — set them here yourself. The site reads
-> the public ones at runtime from `/api/config`, so no keys live in the repo.
-
-## 4 · Deploy
-
-Connect this GitHub repo to a Vercel project (or let me create it). Build settings:
-**Framework: Other · Build command: none · Output dir: `.`** (already in [`vercel.json`](vercel.json)).
-Every push to `main` deploys.
-
-## 5 · Verify
-
-- Storefront loads products from Supabase (edit a price in `products` → it shows up).
-- `/admin.html` → sign in with your admin email → edits save to Supabase.
-- Checkout opens Razorpay test checkout; use test card `4111 1111 1111 1111`, any future
-  expiry/CVV. A paid order appears in `orders`.
+- Storefront loads products from Supabase (edit a price in `products` → it shows up on
+  https://oh-my-gogh.vercel.app after a refresh).
+- `/admin.html` → sign in with the admin email above.
+- Checkout: opens Razorpay test checkout once keys are set; test card `4111 1111 1111 1111`,
+  any future expiry/CVV. A paid order appears in `orders`.
 
 ## Status
 
-- [x] Backend schema, RLS, real-copy seed
-- [x] Serverless functions (config, Razorpay order + verify)
-- [x] Storefront hydrates from Supabase (falls back to demo data offline)
-- [x] Razorpay checkout wired into the storefront cart (server-priced, signature-verified)
-- [x] Demo/placeholder copy removed; currency + shipping driven by config
-- [ ] Admin auth + writes to Supabase  *(wires + verifies live once your project is connected)*
-- [ ] Vercel project import + env vars
+- [x] Supabase project created, schema + RLS applied and verified live
+- [x] Seed content applied (real copy, INR pricing)
+- [x] Vercel project created, linked to GitHub (auto-deploy on push)
+- [x] Env vars set and confirmed live via `/api/config`
+- [x] Storefront hydrates from Supabase on the live deployment (verified)
+- [x] Razorpay checkout wired into the cart (server-priced, signature-verified) — runs in
+      preview mode until keys are added
+- [x] Demo/placeholder copy removed
+- [ ] Admin auth + writes wired into `admin.html` itself *(admin user + RLS exist and are
+      tested; the admin UI doesn't yet call Supabase for login/saves — next up)*
+- [ ] Razorpay keys
 - [ ] (optional) point ohmygogh.com at Vercel

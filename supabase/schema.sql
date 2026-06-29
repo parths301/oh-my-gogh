@@ -11,15 +11,27 @@ create table if not exists public.admins (
   created_at timestamptz not null default now()
 );
 
+-- SECURITY DEFINER is required here: the "admin read admins" policy below
+-- calls is_admin(), which reads the admins table. Without SECURITY DEFINER
+-- that read re-triggers RLS on admins -> calls is_admin() again -> infinite
+-- recursion (Postgres error 54001, stack depth exceeded). Running as the
+-- function owner bypasses RLS for this internal read and breaks the loop,
+-- while callers still only ever get back a boolean.
 create or replace function public.is_admin()
 returns boolean
-language sql stable
+language sql
+security definer
+set search_path = public
+stable
 as $$
   select exists (
     select 1 from public.admins a
     where a.email = (auth.jwt() ->> 'email')
   );
 $$;
+
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to anon, authenticated, service_role;
 
 -- ---- catalog -----------------------------------------------------------
 create table if not exists public.products (

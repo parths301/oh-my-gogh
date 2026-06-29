@@ -1,2 +1,5 @@
 .claude/
 .vercel
+.secrets/
+.env*
+supabase/.temp/
