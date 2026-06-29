@@ -6,11 +6,24 @@
   'use strict';
 
   var DB = window.OMG;
-  var fmt = DB.fmt, cardBg = DB.cardBg, esc = DB.esc;
+  var cardBg = DB.cardBg, esc = DB.esc;
   var CART_KEY = 'omg.cart.v1';
 
-  // ----- live catalog (shared with admin via localStorage) -----------
+  // currency-aware price formatting (symbol derived from settings.currency)
+  var currencySymbol = '$';
+  function symbolFromCurrency(c) {
+    if (!c) return '$';
+    var m = String(c).match(/\(([^)]+)\)/);
+    if (m) return m[1];
+    if (/INR|₹/i.test(c)) return '₹';
+    if (/USD|\$/.test(c)) return '$';
+    return String(c).trim().charAt(0) || '$';
+  }
+  function fmt(n) { return currencySymbol + Math.round(n); }
+
+  // ----- live catalog (Supabase when configured, else bundled demo) ---
   var store = DB.load();
+  currencySymbol = symbolFromCurrency(store.settings && store.settings.currency);
 
   function published(list) { return list.filter(function (p) { return p.status !== 'draft'; }); }
   function products() { return published(store.products); }
@@ -664,5 +677,19 @@
     }
   });
 
-  render();
+  // boot: render immediately with whatever we have, then hydrate from
+  // Supabase if it's configured (falls back silently to demo data).
+  function boot() {
+    render();
+    if (DB.remote && DB.remote.loadStore) {
+      DB.remote.loadStore().then(function (remote) {
+        if (remote && remote.products && remote.products.length) {
+          store = remote;
+          currencySymbol = symbolFromCurrency(store.settings && store.settings.currency);
+          render();
+        }
+      });
+    }
+  }
+  boot();
 })();
