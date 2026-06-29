@@ -108,13 +108,17 @@
     saveCart(); render();
   }
 
+  // payment/shipping config — overridden from /api/config when the site is live
+  var paymentsLive = false, rzpKeyId = '', shipFreeOver = 75, shipFlat = 8;
+
   function cartTotals() {
     var subtotal = state.cart.reduce(function (s, c) { return s + c.price * c.qty; }, 0);
     var discount = state.promoOk ? subtotal * 0.15 : 0;
-    var shipping = subtotal === 0 ? 0 : (subtotal - discount >= 75 ? 0 : 8);
+    var shipping = subtotal === 0 ? 0 : (subtotal - discount >= shipFreeOver ? 0 : shipFlat);
     return { subtotal: subtotal, discount: discount, shipping: shipping, total: subtotal - discount + shipping };
   }
 
+  // demo fallback — used when Razorpay isn't configured yet
   function placeOrder() {
     var no = 'OMG-' + Math.floor(100000 + Math.random() * 900000);
     state.orderNo = no;
@@ -124,6 +128,68 @@
     saveCart();
     window.scrollTo(0, 0);
     render();
+  }
+
+  function loadRazorpay() {
+    return new Promise(function (resolve, reject) {
+      if (window.Razorpay) return resolve(window.Razorpay);
+      var s = document.createElement('script');
+      s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      s.onload = function () { resolve(window.Razorpay); };
+      s.onerror = function () { reject(new Error('razorpay_load_failed')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function collectCustomer(form) {
+    var get = function (n) { var el = form.querySelector('[name=' + n + ']'); return el ? el.value.trim() : ''; };
+    var addr = [get('address'), get('city'), get('zip'), get('country')].filter(Boolean).join(', ');
+    return { name: get('name'), email: get('email'), address: addr };
+  }
+
+  // real checkout: server prices the cart, creates a Razorpay order, opens
+  // Razorpay Checkout, then verifies + records the order server-side.
+  function startCheckout(form) {
+    var customer = collectCustomer(form);
+    if (!paymentsLive) { placeOrder(); return; }   // demo mode until keys are set
+    var items = state.cart.map(function (c) { return { id: c.id, size: c.size, qty: c.qty }; });
+    var code = state.promoOk ? (state.promo || '') : '';
+    var btn = form.querySelector('button[type=submit]');
+    var resetBtn = function () { if (btn) { btn.disabled = false; btn.textContent = 'Place order · ' + fmt(cartTotals().total); } };
+    if (btn) { btn.disabled = true; btn.textContent = 'Contacting Razorpay…'; }
+
+    fetch('/api/razorpay/create-order', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: items, code: code })
+    }).then(function (r) { return r.json(); }).then(function (order) {
+      if (!order || !order.orderId) throw new Error((order && order.error) || 'order_failed');
+      return loadRazorpay().then(function (Razorpay) {
+        var rzp = new Razorpay({
+          key: order.keyId, order_id: order.orderId, amount: order.amount, currency: order.currency,
+          name: 'Oh my Gogh!', description: 'Wearable art & studio goods', image: 'assets/omg-emblem.png',
+          prefill: { name: customer.name, email: customer.email }, theme: { color: '#15315C' },
+          handler: function (resp) {
+            fetch('/api/razorpay/verify', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(Object.assign({}, resp, { customer: customer, items: items, code: code }))
+            }).then(function (r) { return r.json(); }).then(function (out) {
+              state.orderNo = (out && out.orderNo) || 'OMG-PAID';
+              state.view = 'confirm'; state.cart = []; state.promo = ''; state.promoOk = false;
+              saveCart(); window.scrollTo(0, 0); render();
+            }).catch(function () {
+              state.orderNo = 'OMG-PAID'; state.view = 'confirm'; state.cart = [];
+              saveCart(); render();
+            });
+          },
+          modal: { ondismiss: resetBtn }
+        });
+        rzp.on('payment.failed', function () { showToast('Payment failed — please try again'); resetBtn(); });
+        rzp.open();
+      });
+    }).catch(function (err) {
+      resetBtn();
+      showToast('Checkout error — ' + ((err && err.message) || 'please try again'));
+    });
   }
 
   // card art layer: real image if assets/art/<id>.jpg exists, else painterly gradient
@@ -554,7 +620,7 @@
       '<div style="display:flex;gap:12px;flex-wrap:wrap">' + field('city', 'City', 'Arles', 'text', true) + field('zip', 'Postal code', '13200', 'text', true) + '</div>' +
       field('country', 'Country', 'France') + '</div></div>' +
       '<div style="background:#FBF6EA;border:1px solid rgba(21,49,92,.12);border-radius:16px;padding:22px"><h2 style="font-family:\'Playfair Display\',serif;font-size:18px;font-weight:700;margin-bottom:6px">Payment</h2>' +
-      '<p style="font-size:13px;color:rgba(21,49,92,.6);line-height:1.6">This is a demo storefront — no real card is charged. Placing the order simulates a successful Stripe payment.</p></div></div>' +
+      '<p style="font-size:13px;color:rgba(21,49,92,.6);line-height:1.6">' + (paymentsLive ? 'Pay securely with Razorpay — UPI, cards and netbanking. Payment completes in a secure Razorpay window.' : 'Preview mode — live payment turns on once Razorpay keys are configured.') + '</p></div></div>' +
       '<div style="background:#FBF6EA;border:1px solid rgba(21,49,92,.12);padding:clamp(24px,3vw,32px);border-radius:16px;position:sticky;top:90px">' +
       '<h2 style="font-family:\'Playfair Display\',serif;font-size:22px;font-weight:800;margin-bottom:16px">Your order</h2>' + summaryLines +
       '<div style="border-top:1px solid rgba(21,49,92,.14);margin-top:8px;padding-top:12px">' +
@@ -671,7 +737,7 @@
       render();
       showToast(state.promoOk ? 'Code applied — 15% off' : 'That code didn\'t work');
     } else if (act === 'checkout') {
-      placeOrder();
+      startCheckout(form);
     } else if (act === 'contact') {
       state.toast = '__contact'; render();
     }
@@ -681,7 +747,18 @@
   // Supabase if it's configured (falls back silently to demo data).
   function boot() {
     render();
-    if (DB.remote && DB.remote.loadStore) {
+    if (!DB.remote) return;
+    if (DB.remote.getConfig) {
+      DB.remote.getConfig().then(function (cfg) {
+        if (!cfg) return;
+        paymentsLive = !!cfg.razorpayKeyId;
+        rzpKeyId = cfg.razorpayKeyId || '';
+        if (cfg.freeShippingOver != null) shipFreeOver = Number(cfg.freeShippingOver);
+        if (cfg.flatShipping != null) shipFlat = Number(cfg.flatShipping);
+        if (paymentsLive && state.view === 'checkout') render();
+      });
+    }
+    if (DB.remote.loadStore) {
       DB.remote.loadStore().then(function (remote) {
         if (remote && remote.products && remote.products.length) {
           store = remote;

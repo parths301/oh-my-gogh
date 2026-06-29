@@ -8,6 +8,8 @@ module.exports = (req, res) => {
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
     currency: process.env.STORE_CURRENCY || 'INR',
+    freeShippingOver: Number(process.env.FREE_SHIPPING_OVER || 2000),
+    flatShipping: Number(process.env.FLAT_SHIPPING || 99),
     configured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY)
   });
 };
