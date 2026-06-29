@@ -1,123 +1,29 @@
 <!DOCTYPE html>
+<!--
+  Oh my Gogh! — Art Lifestyle Brand
+  Wearable art & studio goods for people who feel in color.
+  https://ohmygogh.com
+-->
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Oh my Gogh! - A t-shirt brand covering all aspects of life and art. Coming soon.">
-    <title>Oh my Gogh! — Coming Soon</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=5">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Oh my Gogh! — a lifestyle brand for artistic minds. Wearable art, art supplies, accessories and studio goods, made in collaboration with working artists.">
+  <meta name="theme-color" content="#15315C">
+  <meta property="og:title" content="Oh my Gogh! — Art Lifestyle Brand">
+  <meta property="og:description" content="Wearable art & studio goods for people who feel in color.">
+  <meta property="og:type" content="website">
+  <title>Oh my Gogh! — Art Lifestyle Brand</title>
+  <link rel="icon" href="assets/omg-emblem.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600&family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Yellowtail&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css">
 </head>
-
 <body>
-    <canvas id="asciiCanvas"></canvas>
-
-    <div class="overlay" id="overlay">
-        <div class="brand-container">
-            <h1 class="brand-title" id="brandTitle">
-                <span class="title-word" style="--i:0">O</span><span class="title-word" style="--i:1">h</span><span
-                    class="title-space"> </span><span class="title-word" style="--i:2">m</span><span class="title-word"
-                    style="--i:3">y</span><span class="title-space"> </span><span class="title-word accent"
-                    style="--i:4">G</span><span class="title-word accent" style="--i:5">o</span><span
-                    class="title-word accent" style="--i:6">g</span><span class="title-word accent"
-                    style="--i:7">h</span><span class="title-word accent" style="--i:8">!</span>
-            </h1>
-            <div class="divider" id="divider"></div>
-            <p class="subtitle" id="subtitle">UNDER CONSTRUCTION</p>
-            <p class="tagline">A lifestyle brand for artistic minds.</p>
-            <a href="mailto:parth@ohmygogh.com" class="contact-email">parth@ohmygogh.com</a>
-        </div>
-
-        <!-- Side Navigation Arrows -->
-        <button class="nav-arrow nav-arrow--left" id="navLeft" aria-label="Previous painting">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                stroke-linejoin="round">
-                <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-        </button>
-        <button class="nav-arrow nav-arrow--right" id="navRight" aria-label="Next painting">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                stroke-linejoin="round">
-                <polyline points="9 6 15 12 9 18"></polyline>
-            </svg>
-        </button>
-
-        <!-- Painting Counter -->
-        <div class="painting-counter" id="paintingCounter">
-            <span class="counter-current" id="counterCurrent">01</span>
-            <span class="counter-sep">/</span>
-            <span class="counter-total" id="counterTotal">09</span>
-        </div>
-
-        <!-- Interactive Settings Panel -->
-        <div class="settings-panel collapsed" id="settingsPanel">
-            <button class="settings-toggle" id="settingsToggle" aria-label="Toggle settings">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                </svg>
-            </button>
-            <div class="settings-content">
-                <div class="setting-group">
-                    <label for="physicsMode">Physics</label>
-                    <div class="select-wrapper">
-                        <select id="physicsMode">
-                            <option value="vortex">Vortex</option>
-                            <option value="repel" selected>Repel</option>
-                            <option value="attract">Attract</option>
-                            <option value="orbit">Orbit</option>
-                            <option value="spring">Spring</option>
-                            <option value="wave">Wave</option>
-                            <option value="scatter">Scatter</option>
-                            <option value="drag">Drag</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="setting-group">
-                    <label for="glowStyle">Glow Style</label>
-                    <div class="select-wrapper">
-                        <select id="glowStyle">
-                            <option value="moon" selected>Moon</option>
-                            <option value="halo">Golden Halo</option>
-                            <option value="subtle">Subtle</option>
-                            <option value="neon">Neon</option>
-                            <option value="pulse">Pulse</option>
-                            <option value="spotlight">Spotlight</option>
-                            <option value="glitch">Glitch</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="setting-group">
-                    <label for="interactionRadius">Effect Radius</label>
-                    <input type="range" id="interactionRadius" min="50" max="500" value="250">
-                </div>
-                <div class="setting-group">
-                    <label for="glowRadius">Glow Radius</label>
-                    <input type="range" id="glowRadius" min="50" max="500" value="250">
-                </div>
-            </div>
-        </div>
-
-        <!-- Bottom Dots -->
-        <div class="painting-indicator" id="paintingIndicator">
-            <div class="indicator-dot active" data-index="0"></div>
-            <div class="indicator-dot" data-index="1"></div>
-            <div class="indicator-dot" data-index="2"></div>
-            <div class="indicator-dot" data-index="3"></div>
-            <div class="indicator-dot" data-index="4"></div>
-            <div class="indicator-dot" data-index="5"></div>
-            <div class="indicator-dot" data-index="6"></div>
-            <div class="indicator-dot" data-index="7"></div>
-            <div class="indicator-dot" data-index="8"></div>
-        </div>
-    </div>
-
-    <script src="script.js?v=5"></script>
+  <div class="grain-fixed" aria-hidden="true"></div>
+  <div id="app"><!-- storefront renders here --></div>
+  <script src="js/data.js"></script>
+  <script src="js/site.js"></script>
 </body>
-
 </html>

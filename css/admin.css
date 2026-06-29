@@ -1,0 +1,45 @@
+/* ============================================================
+   Oh my Gogh! — Studio Admin styles
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #EFE8D6;
+  color: #15315C;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+::selection { background: #E0A93A; color: #15315C; }
+input, select, textarea { font-family: inherit; }
+a { color: inherit; }
+
+.adm-scroll::-webkit-scrollbar { width: 9px; height: 9px; }
+.adm-scroll::-webkit-scrollbar-thumb { background: rgba(21,49,92,.2); border-radius: 8px; }
+
+@keyframes admIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes admDrawer { from { transform: translateX(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes admBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+/* hover helpers */
+.adm-nav-btn { transition: background .2s; }
+.adm-card-hover { transition: box-shadow .25s; }
+.adm-card-hover:hover { box-shadow: 0 12px 32px -12px rgba(14,35,71,.25); }
+.adm-dash:hover { border-color: rgba(21,49,92,.45) !important; }
+.adm-row:hover { background: rgba(21,49,92,.03); }
+
+@media (max-width: 920px) {
+  .adm-shell { flex-direction: column !important; }
+  .adm-sidebar {
+    position: static !important; width: 100% !important; height: auto !important;
+    flex-direction: row !important; align-items: center !important;
+    overflow-x: auto !important; padding: 10px 14px !important; gap: 8px !important;
+  }
+  .adm-sidebar .adm-logo { margin-bottom: 0 !important; margin-right: 8px !important; }
+  .adm-sidebar .adm-navgroup { flex-direction: row !important; gap: 4px !important; flex: 1; }
+  .adm-sidebar .adm-foot { display: none !important; }
+  .adm-navtext { display: none !important; }
+  .adm-nav-btn { padding: 10px !important; }
+  .adm-main { margin-left: 0 !important; }
+  .adm-drawer { width: 100% !important; }
+  .adm-kpis { grid-template-columns: repeat(2, 1fr) !important; }
+  .adm-twocol { grid-template-columns: 1fr !important; }
+}
