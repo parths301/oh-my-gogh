@@ -68,6 +68,8 @@ Every push to `main` deploys.
 - [x] Backend schema, RLS, real-copy seed
 - [x] Serverless functions (config, Razorpay order + verify)
 - [x] Storefront hydrates from Supabase (falls back to demo data offline)
-- [ ] Admin auth + writes to Supabase  *(next, once your project is connected)*
-- [ ] Razorpay checkout wired into the storefront cart  *(next)*
-- [ ] Vercel project + custom domain
+- [x] Razorpay checkout wired into the storefront cart (server-priced, signature-verified)
+- [x] Demo/placeholder copy removed; currency + shipping driven by config
+- [ ] Admin auth + writes to Supabase  *(wires + verifies live once your project is connected)*
+- [ ] Vercel project import + env vars
+- [ ] (optional) point ohmygogh.com at Vercel
