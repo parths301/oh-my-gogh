@@ -51,20 +51,28 @@ module.exports = async (req, res) => {
     var total = subtotal - discount + shipping;
     var currency = process.env.STORE_CURRENCY || 'INR';
 
+    // Razorpay requires a minimum order amount of 100 paise (smallest unit)
+    var amountInSubunits = Math.round(total * 100);
+    if (amountInSubunits < 100) return res.status(400).json({ error: 'amount_too_low', minPaise: 100 });
+
     // create the Razorpay order (amount in the smallest currency unit)
     var auth = Buffer.from(keyId + ':' + keySecret).toString('base64');
     var rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: { 'Authorization': 'Basic ' + auth, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        amount: total * 100,
+        amount: amountInSubunits,
         currency: currency,
         receipt: 'omg_' + Date.now(),
         notes: { code: appliedCode }
       })
     });
     var rzp = await rzpRes.json();
-    if (!rzpRes.ok) return res.status(502).json({ error: 'razorpay_order_failed', detail: rzp });
+    if (!rzpRes.ok) {
+      // surface Razorpay auth failures distinctly from generic order-creation errors
+      if (rzpRes.status === 401) return res.status(401).json({ error: 'razorpay_auth_failed', detail: rzp });
+      return res.status(502).json({ error: 'razorpay_order_failed', detail: rzp });
+    }
 
     return res.status(200).json({
       orderId: rzp.id,
