@@ -84,6 +84,29 @@ never in git history, never in chat going forward. `.env.example` documents the 
       "Vendure/WooCommerce" filler text).
 - [x] Vercel project created + linked to GitHub for auto-deploy; all env vars set and
       confirmed live via `/api/config`.
+- [x] **Storefront brought to full parity with the Claude-design mockup** (`js/site.js`,
+      `css/site.css`) — the mockup file the site was originally built from included pages
+      and a mobile nav that hadn't actually been wired up yet:
+  - Mobile burger-menu nav + the responsive header/hero CSS breakpoints (`.omg-header`,
+    `.omg-nav`, `.omg-burger`, hero title/sub clamps below 760px/560px) — previously
+    missing entirely, so the header just overflowed on small screens.
+  - New pages: **Search** (`search`), **Account** (`account` — guest sign-in demo +
+    Orders/Saved/Profile tabs, local-only since there's no customer-auth backend yet),
+    per-artist **profile pages** (`artist`), and a **404** view for unknown routes.
+  - **Checkout rebuilt as the mockup's 3-step wizard** (Contact → Shipping, incl.
+    Studio Standard/Express options → Payment) — still calls the same real
+    `create-order` / `verify` endpoints on the final step; nothing about the Razorpay
+    integration changed.
+  - The old merged contact+FAQ page was replaced with the mockup's split **info hub**
+    (shipping & returns, size guide, FAQ, contact, privacy, terms, accessibility),
+    reachable from the footer and account nav.
+  - The wishlist (♡ Save) button on the product page now actually toggles and persists
+    (`localStorage`, surfaced in Account → Saved) — it rendered before but did nothing.
+  - `js/admin.js` / `css/admin.css` were already a faithful port of the admin mockup
+    (dashboard, all seven drawers, responsive sidebar) — no changes were needed there.
+  - Verified via a Node smoke test that boots `site.js` in a stubbed DOM and exercises
+    every view/state transition (no headless browser was available to screenshot with
+    in that session — do a real visual pass in a browser if you touch this again).
 
 ## What's NOT done yet — the actual next task
 
@@ -139,6 +162,15 @@ No build step. Local static preview: `python3 -m http.server 4321` (or the proje
 `npm run dev`). Pushing to `main` auto-deploys to Vercel. To change env vars or trigger a
 manual deploy, the Vercel CLI works via `npx vercel <cmd> --token <token>` — a token was
 used once interactively; don't assume one is available in a fresh session.
+
+**Sandboxed Claude sessions can't `git push`** — outbound access to github.com gets a 403
+from the sandbox's proxy. Commit locally as usual (the workspace folder is the user's real
+checkout, so commits land there for real); if `git push` fails with a proxy/403 error,
+that's this restriction, not a real problem — tell the user to run `git push origin main`
+from their own Terminal instead of treating it as broken. Also, git commands here can leave
+a stale `.git/index.lock` around because this sandbox's mounted filesystem blocks `rm`/unlink
+by default — if `git add`/`commit` fails with "Unable to create .git/index.lock: File
+exists", call `allow_cowork_file_delete` on that lock file first, then remove it and retry.
 
 ## Ground rules for this repo
 
