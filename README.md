@@ -16,11 +16,15 @@ This repository is the **full Oh my Gogh! website** — a storefront plus a stud
 | --- | --- |
 | [`index.html`](index.html) | Public storefront shell |
 | [`admin.html`](admin.html) | Studio admin shell (`/admin.html`) |
-| [`js/data.js`](js/data.js) | Shared catalog + localStorage persistence (one source of truth) |
-| [`js/site.js`](js/site.js) | Storefront SPA (home, shop, product, artists, journal, about, cart, checkout) |
-| [`js/admin.js`](js/admin.js) | Admin SPA (dashboard, products, orders, customers, discounts, collections, journal, artists, payments, settings) |
+| [`js/data.js`](js/data.js) | Bundled demo catalog + localStorage helpers (offline/demo fallback only) |
+| [`js/supabase.js`](js/supabase.js) | Supabase client, Auth, row mappers, and CRUD/Storage helpers shared by both SPAs |
+| [`js/site.js`](js/site.js) | Storefront SPA (home, shop, product, artists, journal, search, account, about, cart, checkout) |
+| [`js/admin.js`](js/admin.js) | Admin SPA — Supabase Auth login + live CRUD for products, orders, customers, discounts, collections, journal, artists, payments, settings |
 | [`css/site.css`](css/site.css) · [`css/admin.css`](css/admin.css) | Styles |
 | [`assets/`](assets) | Brand emblem, logo, grain texture |
+| [`api/`](api) | Vercel serverless functions — public config, Razorpay order creation + verification |
+| [`supabase/schema.sql`](supabase/schema.sql), [`supabase/seed.sql`](supabase/seed.sql) | Postgres schema + RLS policies, and starting content |
+| [`SETUP.md`](SETUP.md) | Live infrastructure status + how to go from clone to fully wired |
 | [`WEBSITE_PLAN.md`](WEBSITE_PLAN.md) | Strategic plan for the broader platform |
 
 ## Storefront
@@ -28,34 +32,38 @@ This repository is the **full Oh my Gogh! website** — a storefront plus a stud
 A single-page experience that covers the whole shopping journey:
 
 - **Home** — animated hero, brushstroke motion, featured "Current Hang", category rooms, artist-in-residence, manifesto, newsletter signup
-- **Shop** — category filtering, painterly product cards, quick-add to bag
-- **Product** — gallery, size selector, details, maker credit, related pieces
-- **Artists** — featured collaborator + the rest of the roster
+- **Shop / Search** — category filtering, painterly product cards, quick-add to bag, dedicated search view
+- **Product** — gallery, size selector, details, maker credit, wishlist save, related pieces
+- **Artists** — featured collaborator + the rest of the roster, per-artist profile pages
 - **Journal** — editorial grid with readable article pages
+- **Account** — guest sign-in demo with Orders / Saved / Profile tabs (local-only; there's no customer-auth backend yet)
 - **About** — brand story, values, full logo
-- **Bag → Checkout → Confirmation** — quantity editing, promo codes (`STARRY` = 15% off), shipping logic (free over $75), a checkout form and order confirmation
-- **Contact** — message form + FAQ accordion
+- **Bag → 3-step Checkout (Contact → Shipping → Payment) → Confirmation** — quantity editing, promo codes (`STARRY` = 15% off), shipping logic, real Razorpay Standard Checkout
+- **Info hub** — shipping & returns, size guide, FAQ, contact, privacy, terms, accessibility
+- **404** for unknown routes
+
+Products, artists, journal posts, collections and discounts hydrate from Supabase on load; if Supabase is unreachable the site falls back cleanly to the bundled demo catalog (`js/data.js`) so it never breaks.
 
 ## Studio Admin
 
-A complete merchant back-office at [`/admin.html`](admin.html):
+A complete merchant back-office at [`/admin.html`](admin.html), gated by a Supabase Auth login (only emails in the `admins` table can sign in and write):
 
 - **Dashboard** — revenue / orders / avg-order / conversion KPIs, 14-day revenue chart, top pieces, recent orders
-- **Products** — table with status/inventory, full create / edit / delete drawer (title, description, price, inventory, category, variants, publish toggle)
+- **Products** — table with status/inventory, full create / edit / delete drawer (title, description, price, inventory, category, variants, photo upload, publish toggle)
 - **Orders** — fulfillment pipeline with a status timeline, advance-stage button, tracking numbers, line items and totals
 - **Customers** — list with lifetime value, customer drawer with order history and internal notes
 - **Discounts** — percentage / fixed codes with usage limits and expiry
 - **Collections** — group products into curated drops
-- **Journal** — write and publish articles
-- **Artists** — manage collaborator profiles
-- **Payments** — toggle Stripe / PayPal / Razorpay / Manual providers and enter (test) keys
-- **Settings** — store profile, shipping summary, reset-to-sample-data
+- **Journal** — write and publish articles, with cover photo upload
+- **Artists** — manage collaborator profiles, with portrait upload
+- **Payments** — toggle Stripe / PayPal / Razorpay / Manual providers and enter keys
+- **Settings** — store profile, shipping summary, connection status
 
 ### Live data flow
 
-The admin and storefront share one catalog persisted to `localStorage`. **Edit a product (or publish a draft, add a discount, write a post) in the admin and it shows up on the storefront** — open both in two tabs to see changes sync. "Reset to sample data" in admin → Settings restores the seeded demo content.
+The admin and storefront both read and write the same Supabase Postgres database, gated by Row Level Security: the public can only read *published* catalog/content, and only signed-in admins (checked via an `is_admin()` allowlist) can write. **Edit a product (or publish a draft, add a discount, write a post) in the admin and it shows up on the storefront immediately.** Product, artist, and journal photos upload straight to a public Supabase Storage bucket (`media`) — only admins can write to it, anyone can read/hot-link the resulting URL.
 
-> The admin is a front-end prototype: data lives in the browser, no real payments are processed. The payment and shipping panels are written to map onto an open-source commerce backend (Vendure / WooCommerce) when one is integrated.
+If Supabase isn't configured (e.g. running the admin against a plain static server with no `/api/config`), the admin falls back to the same local demo catalog + "Reset to sample data" flow the storefront uses, so the UI is still fully explorable offline.
 
 ## Brand system
 
@@ -75,7 +83,9 @@ python3 -m http.server 4321
 
 ## Deployment
 
-Static site hosted on GitHub Pages at the [`ohmygogh.com`](https://ohmygogh.com) domain (see [`CNAME`](CNAME)). Pushing to `main` publishes.
+Static site + Vercel serverless functions, deployed at **https://oh-my-gogh.vercel.app** — pushing to `main` auto-deploys. Data lives in Supabase (Postgres + Auth + Storage); payments run through Razorpay. See [`SETUP.md`](SETUP.md) for the full live-infrastructure status.
+
+The public [`ohmygogh.com`](https://ohmygogh.com) domain (see [`CNAME`](CNAME)) is still on GitHub Pages and hasn't been pointed at Vercel yet — that's a deliberate, not-yet-made decision, not an oversight.
 
 ---
 

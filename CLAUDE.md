@@ -16,7 +16,8 @@ Browser ──> Vercel (static HTML/CSS/JS + /api/*.js serverless functions)
               ├─ /api/razorpay/create-order    → server-priced order, calls Razorpay ─┐
               └─ /api/razorpay/verify          → HMAC verify, writes order            │
                                                                                        ▼
-            Supabase (Postgres + RLS + Auth)  ◀── (admin CMS — NOT YET WIRED) ── Razorpay
+            Supabase (Postgres + RLS + Auth + Storage)  ◀── admin.html (Supabase Auth ── Razorpay
+                                                              login + live CRUD)
 ```
 
 ## Stack decisions (why things look the way they do)
@@ -41,8 +42,8 @@ Browser ──> Vercel (static HTML/CSS/JS + /api/*.js serverless functions)
 | Vercel project | `parths301s-projects/oh-my-gogh`, linked to this GitHub repo (`parths301/oh-my-gogh`) |
 | Production URL | **https://oh-my-gogh.vercel.app** — auto-deploys on every push to `main` |
 | Public domain | `ohmygogh.com` — **still on GitHub Pages**, intentionally not pointed at Vercel yet |
-| Admin login | `parthsh.ind@gmail.com` (Supabase Auth user, already created) |
-| Razorpay | Test mode keys set in Vercel env vars (rotated 2026-06-30 — see below) |
+| Admin login | `parthsh.ind@gmail.com` (Supabase Auth user, already created), now used by `admin.html`'s real login screen |
+| Razorpay | **Status disputed, unresolved as of 2026-07-01** — this file previously said test keys were "set... (rotated 2026-06-30)"; `SETUP.md` separately said "not set yet." Neither claim was re-verified when that discrepancy was found (no network access in the sessions that touched this). Check `/api/config`'s `razorpayKeyId` or the Vercel env vars directly and fix whichever doc is wrong — don't trust either claim as-is. |
 
 Real secret values (Supabase service-role key, Razorpay key secret, admin temp password)
 live **only** in Vercel env vars and the local gitignored `.secrets/` / `.env` files —
@@ -107,43 +108,68 @@ never in git history, never in chat going forward. `.env.example` documents the 
   - Verified via a Node smoke test that boots `site.js` in a stubbed DOM and exercises
     every view/state transition (no headless browser was available to screenshot with
     in that session — do a real visual pass in a browser if you touch this again).
+- [x] **Admin panel wired to Supabase** (`admin.html`, `js/admin.js`, `js/supabase.js`) —
+      the "make the CMS work" task described in earlier revisions of this file is done:
+  - `admin.html` boots into a Supabase Auth login screen (email/password against the
+    existing admin user). A signed-in non-admin email sees a "not an admin" screen
+    instead of the dashboard; `is_admin()` / RLS is what actually enforces this
+    server-side, the UI gate is just for a good error message.
+  - Every drawer — products, orders, customers, discounts, collections, journal,
+    artists, payments, settings — reads and writes the live Supabase tables
+    (`js/supabase.js` gained `signIn/signOut/getSession/onAuthChange/checkIsAdmin`,
+    generic `insertRow/updateRow/deleteRow/updateSettings/updateOrder`, row
+    mappers/un-mappers for every table, and `loadAdminCatalog()`). Tracking-number and
+    customer-note edits are debounced (600ms) before writing, to avoid a network
+    round-trip per keystroke.
+  - Product / artist / journal photo uploads go through a new public `media` Supabase
+    Storage bucket (`supabase/schema.sql`, admin-only write via `is_admin()`); the
+    uploaded URL is stored in each row's `image_url` column. The storefront's
+    `artLayer()` in `js/site.js` now renders that photo over the gradient placeholder
+    when present (previously `image_url` was mapped from Supabase but never actually
+    drawn anywhere — a real photo upload would've had no visible effect until this).
+  - **Local/offline fallback preserved**: if `/api/config` reports Supabase isn't
+    configured, `admin.js` skips the login screen entirely and runs exactly like before
+    (`js/data.js` + localStorage, "Reset to sample data" and all) — same pattern the
+    storefront already used. `remoteMode` is the flag that switches between the two
+    code paths throughout `admin.js`.
+  - Verified with `node -c` (syntax) and a Node `vm`-based DOM shim smoke test (same
+    no-browser-available constraint as the site.js work) confirming: (a) boot into local
+    demo mode renders the full dashboard without throwing when Supabase isn't
+    configured, and (b) boot degrades cleanly to the login screen when Supabase is
+    configured but the client can't be reached. **Not yet tested against the real,
+    live Supabase project** — this session had no outbound network access at all
+    (confirmed via curl to supabase.co / vercel.app / github.com, all failed). Do a
+    real sign-in + save + photo-upload pass before trusting this in production.
+  - **Action required on the live project:** `supabase/schema.sql` gained the `media`
+    Storage bucket + policies section — re-run the whole file (idempotent) against the
+    live project (ref `pauqbjrfnkacxweqnevj`), or product/artist/journal photo uploads
+    will fail with a permissions or "bucket not found" error.
 
-## What's NOT done yet — the actual next task
+## What's NOT done yet
 
-**The admin panel (`admin.html` / `js/admin.js`) still reads and writes only
-`localStorage`** (via `js/data.js`). The Supabase backend, RLS policies, and admin login
-all exist and are tested — but nothing in the admin UI calls Supabase yet. This is the
-real "make the CMS work" task:
-
-1. Add Supabase Auth login screen to `admin.html` (email/password against the existing
-   admin user; `js/supabase.js` already has `getClient()`).
-2. Replace `admin.js`'s direct `store.products.push(...)` / `DB.save(store)` calls with
-   Supabase reads/writes (`client.from('products').insert(...)`, `.update(...)`,
-   `.delete(...)`, etc.) for every section: products, orders, customers, discounts,
-   collections, journal, artists, settings.
-3. Keep the localStorage path as an offline/demo fallback, same pattern as the storefront
-   (`DB.remote.loadStore()` already does this read-side for the storefront — mirror it
-   for the admin, but add write-through).
-4. Verify against the live Supabase project (ref `pauqbjrfnkacxweqnevj`) before
-   considering this done — don't ship unverified auth/write code.
-
-Secondary, lower-priority items:
+- [ ] **Live-verify the admin Supabase wiring** above — sign in as
+      `parthsh.ind@gmail.com`, edit a product, upload a photo, advance an order stage,
+      and confirm the row actually changed in the Supabase table editor + Storage
+      bucket. This was built and code-reviewed but never run against the real backend.
+- [ ] Re-run `supabase/schema.sql` against the live project (see above).
 - [ ] Point `ohmygogh.com` at Vercel (DNS change — confirm with the user first, this
       affects the live public domain).
 - [ ] Move Razorpay from **test** keys to **live** keys when the user is ready to accept
-      real payments (explicit user decision, not something to do unprompted).
-- [ ] Product photography — admin currently renders painterly gradient placeholders per
-      product (`OMG.cardBg`); real photos get uploaded via Supabase Storage once the
-      admin write-through exists.
+      real payments (explicit user decision, not something to do unprompted). Also
+      resolve the Razorpay test-key status discrepancy noted in the table above first —
+      it's currently unclear whether test keys are even set.
 
 ## File map
 
 ```
 index.html, admin.html       — SPA shells, load the JS below
-js/data.js                   — bundled demo catalog + localStorage helpers (fallback)
-js/supabase.js               — Supabase client loader + DB-row -> UI-shape mappers
+js/data.js                   — bundled demo catalog + localStorage helpers (offline/demo fallback)
+js/supabase.js               — Supabase client loader, Auth, row mappers/un-mappers, generic
+                                CRUD, Storage upload, loadStore()/loadAdminCatalog()
 js/site.js                   — storefront SPA (all views, cart, checkout)
-js/admin.js                  — admin SPA (NOT yet wired to Supabase — see above)
+js/admin.js                  — admin SPA — Supabase Auth login + live CRUD for every
+                                section, falls back to js/data.js + localStorage if
+                                Supabase isn't configured (remoteMode flag)
 css/site.css, css/admin.css  — styles
 api/_lib.js                  — shared serverless helpers
 api/config.js                — public config endpoint
