@@ -222,3 +222,29 @@ create policy "admin all order_items" on public.order_items
 drop policy if exists "admin read admins" on public.admins;
 create policy "admin read admins" on public.admins
   for select using (public.is_admin());
+
+-- ============================================================
+-- Storage — product / artist / journal photos
+-- Public bucket so the storefront can hot-link images directly;
+-- only admins (per is_admin()) can upload, replace or delete.
+-- ============================================================
+insert into storage.buckets (id, name, public)
+values ('media', 'media', true)
+on conflict (id) do nothing;
+
+drop policy if exists "public read media" on storage.objects;
+create policy "public read media" on storage.objects
+  for select using (bucket_id = 'media');
+
+drop policy if exists "admin insert media" on storage.objects;
+create policy "admin insert media" on storage.objects
+  for insert with check (bucket_id = 'media' and public.is_admin());
+
+drop policy if exists "admin update media" on storage.objects;
+create policy "admin update media" on storage.objects
+  for update using (bucket_id = 'media' and public.is_admin())
+  with check (bucket_id = 'media' and public.is_admin());
+
+drop policy if exists "admin delete media" on storage.objects;
+create policy "admin delete media" on storage.objects
+  for delete using (bucket_id = 'media' and public.is_admin());
