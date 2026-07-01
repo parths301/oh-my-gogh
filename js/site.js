@@ -266,9 +266,10 @@
     });
   }
 
-  // card art layer: real image if assets/art/<id>.jpg exists, else painterly gradient
+  // card art layer: real uploaded photo (Supabase Storage) if present, else the painterly gradient
   function artLayer(p) {
-    return '<div style="position:absolute;inset:0;background-image:url(\'assets/grain.svg\');background-size:200px;opacity:.14;mix-blend-mode:multiply"></div>';
+    var photo = (p && p.image_url) ? '<img src="' + esc(p.image_url) + '" alt="" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">' : '';
+    return photo + '<div style="position:absolute;inset:0;background-image:url(\'assets/grain.svg\');background-size:200px;opacity:.14;mix-blend-mode:multiply"></div>';
   }
 
   // ===================================================================

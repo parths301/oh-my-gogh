@@ -1,8 +1,13 @@
 /* ============================================================
    Oh my Gogh! — Studio Admin SPA (vanilla)
    Faithful port of "Oh My Gogh Admin.dc.html".
-   Reads/writes the shared catalog (localStorage) so changes
-   appear on the storefront.
+
+   Backed by Supabase when configured (Auth login + live CRUD against
+   the products/orders/etc. tables, gated by admin RLS + is_admin()).
+   Falls back to the localStorage demo catalog (js/data.js) when
+   Supabase isn't configured/reachable, same fallback pattern as the
+   storefront — this SPA must never hard-fail just because the
+   backend is unavailable.
    ============================================================ */
 (function () {
   'use strict';
@@ -10,8 +15,9 @@
   var DB = window.OMG;
   var fmt = DB.fmt, cardBg = DB.cardBg, esc = DB.esc;
 
-  var store = DB.load();
-  function persist() { DB.save(store); }
+  var remoteMode = false;   // true once we've verified an admin session against Supabase
+  var store = DB.load();    // local fallback data; replaced with shapeRemoteStore() once signed in
+  function persist() { if (!remoteMode) DB.save(store); }
 
   var state = {
     view: 'overview',
@@ -26,10 +32,26 @@
     isNew: false,
     draft: null,
     selOrderId: null,
-    selCustId: null
+    selCustId: null,
+    // auth
+    authState: 'boot',   // boot | login | denied | ready
+    authEmail: '',
+    authErr: '',
+    authBusy: false,
+    loginEmail: '',
+    loginPassword: '',
+    uploadingImage: null
   };
   var toastTimer = null;
   var searchFocused = false;
+  var trackingDebounce = null;
+  var custNoteDebounce = null;
+
+  function remoteThen(promise, onOk) {
+    promise.then(function (row) { onOk(row); }).catch(function (err) {
+      toast('Error: ' + (err && err.message ? err.message : 'Something went wrong talking to Supabase.'));
+    });
+  }
 
   // ----- helpers -----------------------------------------------------
   function toast(m) {
@@ -114,10 +136,22 @@
       '<nav class="adm-navgroup" style="display:flex;flex-direction:column;gap:3px">' + navBtns + '</nav>' +
       '<div class="adm-foot" style="margin-top:auto;display:flex;flex-direction:column;gap:12px">' +
       '<a href="index.html" style="display:flex;align-items:center;gap:9px;text-decoration:none;font-family:\'Space Mono\',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(243,237,221,.6);padding:11px 12px;border:1px solid rgba(243,237,221,.16);border-radius:12px">View storefront ↗</a>' +
-      '<div style="display:flex;align-items:center;gap:10px;padding:6px 4px">' +
+      accountBlock() + '</div></aside>';
+  }
+
+  function accountBlock() {
+    if (remoteMode) {
+      var initial = esc((state.authEmail || 'A').charAt(0).toUpperCase());
+      return '<div style="display:flex;align-items:center;gap:10px;padding:6px 4px">' +
+        '<div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#E0A93A,#C0561E);display:flex;align-items:center;justify-content:center;font-weight:700;color:#0E2347;flex:none">' + initial + '</div>' +
+        '<div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:600;color:#F3EDDD;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(state.authEmail || 'Admin') + '</div>' +
+        '<div style="font-size:11px;color:rgba(243,237,221,.5)">Owner</div></div>' +
+        '<button data-act="signout" title="Sign out" style="flex:none;width:30px;height:30px;border-radius:50%;border:1px solid rgba(243,237,221,.2);background:transparent;color:rgba(243,237,221,.7);cursor:pointer;font-size:13px">⏻</button></div>';
+    }
+    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 4px">' +
       '<div style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#E0A93A,#C0561E);display:flex;align-items:center;justify-content:center;font-weight:700;color:#0E2347;flex:none">P</div>' +
       '<div style="min-width:0"><div style="font-size:13px;font-weight:600;color:#F3EDDD;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Parth S.</div>' +
-      '<div style="font-size:11px;color:rgba(243,237,221,.5)">Owner</div></div></div></div></aside>';
+      '<div style="font-size:11px;color:rgba(243,237,221,.5)">Owner (demo data)</div></div></div>';
   }
 
   function topbar() {
@@ -421,10 +455,48 @@
       '<div style="display:flex;flex-direction:column;gap:14px">' + fields + '</div></div>' +
       '<div style="background:#FBF6EA;border:1px solid rgba(21,49,92,.1);border-radius:18px;padding:22px"><h2 style="font-family:\'Playfair Display\',serif;font-size:18px;font-weight:700;margin-bottom:6px">Shipping</h2>' +
       '<p style="font-size:13px;color:rgba(21,49,92,.6);line-height:1.6">Free shipping over ₹2000 · ₹99 flat otherwise. Set <span style="font-family:\'Space Mono\',monospace">FREE_SHIPPING_OVER</span> and <span style="font-family:\'Space Mono\',monospace">FLAT_SHIPPING</span> in your Vercel environment variables to change these rates.</p></div>' +
-      '<div style="background:#FBF6EA;border:1px solid rgba(21,49,92,.1);border-radius:18px;padding:22px"><h2 style="font-family:\'Playfair Display\',serif;font-size:18px;font-weight:700;margin-bottom:6px">Demo data</h2>' +
-      '<p style="font-size:13px;color:rgba(21,49,92,.6);line-height:1.6;margin-bottom:14px">Reset the catalog, orders and content back to the seeded sample data.</p>' +
-      '<button data-act="resetdata" style="font-size:13px;color:#C0561E;background:transparent;border:1.5px solid rgba(192,86,30,.4);border-radius:100px;padding:11px 20px;cursor:pointer">Reset to sample data</button></div>' +
+      '<div style="background:#FBF6EA;border:1px solid rgba(21,49,92,.1);border-radius:18px;padding:22px"><h2 style="font-family:\'Playfair Display\',serif;font-size:18px;font-weight:700;margin-bottom:6px">' + (remoteMode ? 'Connection' : 'Demo data') + '</h2>' +
+      (remoteMode
+        ? '<p style="font-size:13px;color:rgba(21,49,92,.6);line-height:1.6">Connected to Supabase as <strong>' + esc(state.authEmail) + '</strong>. Every save here writes straight to the live database — there\'s no local demo data to reset.</p>'
+        : ('<p style="font-size:13px;color:rgba(21,49,92,.6);line-height:1.6;margin-bottom:14px">Reset the catalog, orders and content back to the seeded sample data.</p>' +
+          '<button data-act="resetdata" style="font-size:13px;color:#C0561E;background:transparent;border:1.5px solid rgba(192,86,30,.4);border-radius:100px;padding:11px 20px;cursor:pointer">Reset to sample data</button>')) + '</div>' +
       '<div style="display:flex;justify-content:flex-end"><button data-act="savesettings" style="font-size:14px;font-weight:600;color:#F3EDDD;background:#15315C;border:none;border-radius:100px;padding:13px 26px;cursor:pointer;box-shadow:0 10px 22px -10px rgba(21,49,92,.6)">Save settings</button></div></div>';
+  }
+
+  // ===================================================================
+  //  AUTH SCREENS (shown instead of the shell while authState !== 'ready')
+  // ===================================================================
+  function loadingView() {
+    return '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0E2347">' +
+      '<div style="color:rgba(243,237,221,.6);font-family:\'Space Mono\',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase">Loading studio…</div></div>';
+  }
+
+  function loginView() {
+    var err = state.authErr ? '<div style="background:rgba(192,86,30,.1);border:1px solid rgba(192,86,30,.3);color:#C0561E;font-size:13px;border-radius:10px;padding:11px 14px;margin-bottom:16px;line-height:1.5">' + esc(state.authErr) + '</div>' : '';
+    return '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0E2347;padding:24px">' +
+      '<div style="width:100%;max-width:380px;background:#F3EDDD;border-radius:20px;padding:36px 32px;box-shadow:0 30px 80px -30px rgba(0,0,0,.5)">' +
+      '<div style="display:flex;align-items:center;gap:11px;margin-bottom:26px">' +
+      '<img src="assets/omg-emblem.png" alt="" style="width:44px;height:44px;border-radius:50%;box-shadow:0 3px 10px rgba(0,0,0,.3)">' +
+      '<div><div style="font-family:\'Yellowtail\',cursive;font-size:24px;color:#15315C;line-height:1">Oh my <span style="color:#C0561E">Gogh!</span></div>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:rgba(21,49,92,.5);margin-top:2px">Studio Admin</div></div></div>' +
+      err +
+      '<label style="display:block;margin-bottom:14px">' + lbl('Email') +
+      '<input data-act="loginemail" type="email" value="' + esc(state.loginEmail) + '" placeholder="you@studio.com" autocomplete="username" style="width:100%;margin-top:5px;font-size:14px;color:#15315C;background:#fff;border:1px solid rgba(21,49,92,.18);border-radius:10px;padding:12px 14px;outline:none"></label>' +
+      '<label style="display:block;margin-bottom:20px">' + lbl('Password') +
+      '<input data-act="loginpassword" type="password" value="' + esc(state.loginPassword) + '" placeholder="••••••••" autocomplete="current-password" style="width:100%;margin-top:5px;font-size:14px;color:#15315C;background:#fff;border:1px solid rgba(21,49,92,.18);border-radius:10px;padding:12px 14px;outline:none"></label>' +
+      '<button data-act="dosignin"' + (state.authBusy ? ' disabled' : '') + ' style="width:100%;font-size:15px;font-weight:600;color:#F3EDDD;background:' + (state.authBusy ? 'rgba(21,49,92,.5)' : '#15315C') + ';border:none;border-radius:100px;padding:14px;cursor:' + (state.authBusy ? 'default' : 'pointer') + '">' + (state.authBusy ? 'Signing in…' : 'Sign in') + '</button>' +
+      '<a href="index.html" style="display:block;text-align:center;margin-top:18px;font-family:\'Space Mono\',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(21,49,92,.45);text-decoration:none">← Back to storefront</a>' +
+      '</div></div>';
+  }
+
+  function deniedView() {
+    return '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0E2347;padding:24px">' +
+      '<div style="width:100%;max-width:420px;background:#F3EDDD;border-radius:20px;padding:36px 32px;text-align:center;box-shadow:0 30px 80px -30px rgba(0,0,0,.5)">' +
+      '<div style="font-size:34px;margin-bottom:10px">⛔</div>' +
+      '<h2 style="font-family:\'Playfair Display\',serif;font-size:20px;font-weight:800;color:#15315C">Not an admin account</h2>' +
+      '<p style="font-size:13px;color:rgba(21,49,92,.6);line-height:1.6;margin-top:10px">' + esc(state.authEmail || 'This account') + ' is signed in but isn’t on the studio admin allowlist yet. Ask an existing admin to add your email to the <code>admins</code> table in Supabase.</p>' +
+      (state.authErr ? '<p style="font-size:12px;color:#C0561E;margin-top:12px">' + esc(state.authErr) + '</p>' : '') +
+      '<button data-act="signout" style="margin-top:20px;font-size:14px;font-weight:600;color:#F3EDDD;background:#15315C;border:none;border-radius:100px;padding:12px 24px;cursor:pointer">Sign out</button></div></div>';
   }
 
   function bodyView() {
@@ -470,6 +542,19 @@
     var del = delAct ? '<button data-act="' + delAct + '" style="font-size:14px;color:#C0561E;background:transparent;border:1.5px solid rgba(192,86,30,.4);border-radius:100px;padding:14px 20px;cursor:pointer">' + delLabel + '</button>' : '';
     return '<div style="display:flex;gap:12px;margin-top:4px"><button data-act="' + saveAct + '" style="flex:1;font-size:15px;font-weight:600;color:#F3EDDD;background:#15315C;border:none;border-radius:100px;padding:14px;cursor:pointer;box-shadow:0 10px 22px -10px rgba(21,49,92,.6)">' + saveLabel + '</button>' + del + '</div>';
   }
+  // Photo upload UI for product/artist/journal drawers. Uploads go straight to
+  // Supabase Storage (bucket "media") when signed in; in local/demo mode there's
+  // nothing to upload to, so we just show the existing gradient placeholder.
+  function photoPicker(label, folder, url, tint) {
+    var uploading = state.uploadingImage === folder;
+    var img = url ? '<img src="' + esc(url) + '" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">' : '';
+    var overlay = remoteMode ?
+      '<input data-act="pickimage" data-folder="' + folder + '" type="file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer">' +
+      '<span style="position:absolute;bottom:8px;right:8px;background:rgba(14,35,71,.75);color:#F3EDDD;font-family:\'Space Mono\',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:8px;pointer-events:none">' + (uploading ? 'Uploading…' : (url ? 'Replace photo' : 'Upload photo')) + '</span>' : '';
+    var hint = !remoteMode ? '<div style="font-size:11px;color:rgba(21,49,92,.45);margin-top:6px">Sign in with Supabase to upload real photos — showing a placeholder for now.</div>' : '';
+    return '<div><span style="font-family:\'Space Mono\',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(21,49,92,.55)">' + label + '</span>' +
+      '<div style="position:relative;width:100%;aspect-ratio:4/3;margin-top:7px;border-radius:12px;overflow:hidden;background:' + cardBg(tint || '20,42,84') + '">' + img + overlay + '</div>' + hint + '</div>';
+  }
 
   function productDrawer() {
     var d = state.draft;
@@ -483,8 +568,7 @@
     }).join('');
     var published = d.status === 'published';
     var body =
-      '<div><span style="font-family:\'Space Mono\',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(21,49,92,.55)">Product image</span>' +
-      '<div style="display:block;width:100%;aspect-ratio:4/3;margin-top:7px;border-radius:12px;background:' + cardBg(d.tint || '20,42,84') + '"></div></div>' +
+      photoPicker('Product image', 'products', d.image_url, d.tint) +
       '<label style="display:block">' + lbl('Title') + inputField('name', d.name, 'e.g. Starry Night Crew Tee', 'font-weight:600;font-size:15px') + '</label>' +
       '<label style="display:block">' + lbl('Description') + '<textarea data-dfield="blurb" rows="3" placeholder="What makes this piece special…" style="width:100%;margin-top:5px;font-size:14px;line-height:1.5;color:#15315C;background:#fff;border:1px solid rgba(21,49,92,.18);border-radius:10px;padding:11px 13px;outline:none;resize:vertical;font-family:\'Space Grotesk\',sans-serif">' + esc(d.blurb) + '</textarea></label>' +
       '<div style="display:flex;gap:12px"><label style="flex:1">' + lbl('Price (USD)') + '<input data-dfield="price" type="number" value="' + esc(d.price) + '" style="width:100%;margin-top:5px;font-family:\'Space Mono\',monospace;font-size:14px;color:#15315C;background:#fff;border:1px solid rgba(21,49,92,.18);border-radius:10px;padding:11px 13px;outline:none"></label>' +
@@ -609,6 +693,7 @@
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><label style="display:block">' + lbl('Category') +
       '<select data-dfield="cat" style="width:100%;margin-top:5px;font-size:14px;color:#15315C;background:#fff;border:1px solid rgba(21,49,92,.18);border-radius:10px;padding:11px 13px;outline:none;cursor:pointer">' + catOpts + '</select></label>' +
       '<label style="display:block">' + lbl('Read time') + inputField('read_time', d.read_time, 'e.g. 5 min read') + '</label></div>' +
+      photoPicker('Cover image', 'journal', d.image_url, d.tint) +
       '<label style="display:block">' + lbl('Excerpt') + '<textarea data-dfield="excerpt" rows="2" placeholder="Short description shown on the journal grid…" style="width:100%;margin-top:5px;font-size:14px;line-height:1.5;color:#15315C;background:#fff;border:1px solid rgba(21,49,92,.18);border-radius:10px;padding:11px 13px;outline:none;resize:vertical;font-family:\'Space Grotesk\',sans-serif">' + esc(d.excerpt) + '</textarea></label>' +
       '<label style="display:block">' + lbl('Body (paste or type content)') + '<textarea data-dfield="bodyText" rows="10" placeholder="Write your article here…" style="width:100%;margin-top:5px;font-size:14px;line-height:1.7;color:#15315C;background:#fff;border:1px solid rgba(21,49,92,.18);border-radius:10px;padding:11px 13px;outline:none;resize:vertical;font-family:\'Space Grotesk\',sans-serif">' + esc(d.bodyText) + '</textarea></label>' +
       switchRow('Published', 'Visible in the journal', 'jtogglestatus', published) +
@@ -619,6 +704,7 @@
   function artistDrawer() {
     var d = state.draft;
     var body =
+      photoPicker('Portrait', 'artists', d.image_url, d.tint) +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
       '<label style="display:block;grid-column:span 2">' + lbl('Full name') + inputField('name', d.name, '', 'font-weight:600;font-size:15px') + '</label>' +
       '<label style="display:block">' + lbl('Medium') + inputField('medium', d.medium, 'e.g. Textile Painter') + '</label>' +
@@ -651,6 +737,9 @@
   //  RENDER
   // ===================================================================
   function render() {
+    if (state.authState === 'boot') { document.getElementById('admin').innerHTML = loadingView(); return; }
+    if (state.authState === 'login') { document.getElementById('admin').innerHTML = loginView(); return; }
+    if (state.authState === 'denied') { document.getElementById('admin').innerHTML = deniedView(); return; }
     var toastEl = state.toast ? '<div style="position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:200;background:#15315C;color:#F3EDDD;font-size:14px;padding:14px 24px;border-radius:100px;box-shadow:0 16px 40px -14px rgba(14,35,71,.7);display:flex;align-items:center;gap:10px"><span style="width:9px;height:9px;border-radius:50%;background:#2E8A87;flex:none"></span>' + esc(state.toast) + '</div>' : '';
     document.getElementById('admin').innerHTML =
       '<div class="adm-shell" style="display:flex;min-height:100vh">' + sidebar() +
@@ -693,13 +782,34 @@
         if (!String(d.name).trim()) { toast('Give the piece a title first'); return; }
         d.price = Number(d.price) || 0; d.inventory = Number(d.inventory) || 0;
         d.sizes = (d.sizes && d.sizes.length) ? d.sizes : ['One']; d.sold = d.sold || 0;
-        if (state.isNew) { d.id = 'p' + Date.now(); store.products.unshift(d); }
+        var wasNew = state.isNew; var name = d.name;
+        if (remoteMode) {
+          var row = DB.remote.unmap.product(d);
+          if (wasNew) { row.id = 'p' + Date.now(); row.position = store.products.length; }
+          var op = wasNew ? DB.remote.insertRow('products', row) : DB.remote.updateRow('products', d.id, row);
+          remoteThen(op, function (saved) {
+            var mapped = DB.remote.map.product(saved);
+            if (wasNew) store.products.unshift(mapped);
+            else { var idx2 = store.products.findIndex(function (x) { return x.id === mapped.id; }); if (idx2 >= 0) store.products[idx2] = mapped; }
+            state.drawer = null; state.draft = null; toast(wasNew ? name + ' added' : name + ' updated');
+          });
+          return;
+        }
+        if (wasNew) { d.id = 'p' + Date.now(); store.products.unshift(d); }
         else { var idx = store.products.findIndex(function (x) { return x.id === d.id; }); if (idx >= 0) store.products[idx] = d; }
-        persist(); var name = d.name; var wasNew = state.isNew;
+        persist();
         state.drawer = null; state.draft = null; toast(wasNew ? name + ' added' : name + ' updated'); break;
       }
       case 'delproduct': {
-        var id = state.draft.id; store.products = store.products.filter(function (x) { return x.id !== id; });
+        var id = state.draft.id;
+        if (remoteMode) {
+          remoteThen(DB.remote.deleteRow('products', id), function () {
+            store.products = store.products.filter(function (x) { return x.id !== id; });
+            state.drawer = null; state.draft = null; toast('Product removed');
+          });
+          return;
+        }
+        store.products = store.products.filter(function (x) { return x.id !== id; });
         persist(); state.drawer = null; state.draft = null; toast('Product removed'); break;
       }
 
@@ -707,7 +817,13 @@
       case 'openorder': state.drawer = 'order'; state.selOrderId = node.getAttribute('data-id'); render(); break;
       case 'advorder': {
         var o = store.orders.find(function (x) { return x.id === state.selOrderId; });
-        if (o) { o.stage = Math.min(4, o.stage + 1); persist(); } render(); break;
+        if (!o) { render(); break; }
+        var newStage = Math.min(4, o.stage + 1);
+        if (remoteMode) {
+          remoteThen(DB.remote.updateOrder(o.id, { stage: newStage }), function () { o.stage = newStage; render(); });
+          return;
+        }
+        o.stage = newStage; persist(); render(); break;
       }
 
       // customers
@@ -722,11 +838,34 @@
         var d2 = state.draft;
         if (!String(d2.code).trim()) { toast('Give the code a name first'); return; }
         d2.code = String(d2.code).trim().toUpperCase(); d2.value = Number(d2.value) || 0; d2.limit = Number(d2.limit) || 0; d2.used = d2.used || 0;
-        if (state.isNew) { d2.id = 'disc' + Date.now(); store.discounts.unshift(d2); }
+        var wasNewD = state.isNew; var code = d2.code;
+        if (remoteMode) {
+          var rowD = DB.remote.unmap.discount(d2);
+          if (wasNewD) rowD.id = 'disc' + Date.now();
+          var opD = wasNewD ? DB.remote.insertRow('discounts', rowD) : DB.remote.updateRow('discounts', d2.id, rowD);
+          remoteThen(opD, function (saved) {
+            var mapped = DB.remote.map.discount(saved);
+            if (wasNewD) store.discounts.unshift(mapped);
+            else { var di2 = store.discounts.findIndex(function (x) { return x.id === mapped.id; }); if (di2 >= 0) store.discounts[di2] = mapped; }
+            state.drawer = null; state.draft = null; toast(wasNewD ? code + ' created' : code + ' updated');
+          });
+          return;
+        }
+        if (wasNewD) { d2.id = 'disc' + Date.now(); store.discounts.unshift(d2); }
         else { var di = store.discounts.findIndex(function (x) { return x.id === d2.id; }); if (di >= 0) store.discounts[di] = d2; }
-        persist(); var code = d2.code; var wn = state.isNew; state.drawer = null; state.draft = null; toast(wn ? code + ' created' : code + ' updated'); break;
+        persist(); state.drawer = null; state.draft = null; toast(wasNewD ? code + ' created' : code + ' updated'); break;
       }
-      case 'deldisc': { var id2 = state.draft.id; store.discounts = store.discounts.filter(function (x) { return x.id !== id2; }); persist(); state.drawer = null; state.draft = null; toast('Code removed'); break; }
+      case 'deldisc': {
+        var id2 = state.draft.id;
+        if (remoteMode) {
+          remoteThen(DB.remote.deleteRow('discounts', id2), function () {
+            store.discounts = store.discounts.filter(function (x) { return x.id !== id2; });
+            state.drawer = null; state.draft = null; toast('Code removed');
+          });
+          return;
+        }
+        store.discounts = store.discounts.filter(function (x) { return x.id !== id2; }); persist(); state.drawer = null; state.draft = null; toast('Code removed'); break;
+      }
 
       // collections
       case 'newcol': state.drawer = 'collection'; state.isNew = true; state.draft = { id: null, name: 'New collection', desc: '', productIds: [], status: 'draft' }; render(); break;
@@ -734,12 +873,34 @@
       case 'coltoggle': { var pid = node.getAttribute('data-id'); var ids = state.draft.productIds; var ci = ids.indexOf(pid); if (ci >= 0) ids.splice(ci, 1); else ids.push(pid); render(); break; }
       case 'coltogglestatus': setDraft('status', state.draft.status === 'published' ? 'draft' : 'published'); render(); break;
       case 'savecol': {
-        var c3 = state.draft;
-        if (state.isNew) { c3.id = 'col' + Date.now(); store.collections.push(c3); }
+        var c3 = state.draft; var wasNewC = state.isNew; var nm = c3.name;
+        if (remoteMode) {
+          var rowC = DB.remote.unmap.collection(c3);
+          if (wasNewC) { rowC.id = 'col' + Date.now(); rowC.position = store.collections.length; }
+          var opC = wasNewC ? DB.remote.insertRow('collections', rowC) : DB.remote.updateRow('collections', c3.id, rowC);
+          remoteThen(opC, function (saved) {
+            var mapped = DB.remote.map.collection(saved);
+            if (wasNewC) store.collections.push(mapped);
+            else { var coi2 = store.collections.findIndex(function (x) { return x.id === mapped.id; }); if (coi2 >= 0) store.collections[coi2] = mapped; }
+            state.drawer = null; state.draft = null; toast(nm + ' saved');
+          });
+          return;
+        }
+        if (wasNewC) { c3.id = 'col' + Date.now(); store.collections.push(c3); }
         else { var coi = store.collections.findIndex(function (x) { return x.id === c3.id; }); if (coi >= 0) store.collections[coi] = c3; }
-        persist(); var nm = c3.name; state.drawer = null; state.draft = null; toast(nm + ' saved'); break;
+        persist(); state.drawer = null; state.draft = null; toast(nm + ' saved'); break;
       }
-      case 'delcol': { var id3 = state.draft.id; store.collections = store.collections.filter(function (x) { return x.id !== id3; }); persist(); state.drawer = null; state.draft = null; toast('Collection removed'); break; }
+      case 'delcol': {
+        var id3 = state.draft.id;
+        if (remoteMode) {
+          remoteThen(DB.remote.deleteRow('collections', id3), function () {
+            store.collections = store.collections.filter(function (x) { return x.id !== id3; });
+            state.drawer = null; state.draft = null; toast('Collection removed');
+          });
+          return;
+        }
+        store.collections = store.collections.filter(function (x) { return x.id !== id3; }); persist(); state.drawer = null; state.draft = null; toast('Collection removed'); break;
+      }
 
       // journal
       case 'newpost': state.drawer = 'journal'; state.isNew = true; state.draft = { id: null, title: 'Untitled post', cat: 'Materials', read_time: '5 min read', excerpt: '', bodyText: '', status: 'draft', tint: '20,42,84', author: 'Atelier OMG', date: 'Jun 29, 2026' }; render(); break;
@@ -748,11 +909,34 @@
       case 'savejrn': {
         var j = state.draft;
         if (!String(j.title).trim()) { toast('Give the post a title first'); return; }
-        if (state.isNew) { j.id = 'a' + Date.now(); store.journal.unshift(j); }
+        var wasNewJ = state.isNew; var t = j.title;
+        if (remoteMode) {
+          var rowJ = DB.remote.unmap.post(j);
+          if (wasNewJ) rowJ.id = 'a' + Date.now();
+          var opJ = wasNewJ ? DB.remote.insertRow('journal_posts', rowJ) : DB.remote.updateRow('journal_posts', j.id, rowJ);
+          remoteThen(opJ, function (saved) {
+            var mapped = DB.remote.map.post(saved);
+            if (wasNewJ) store.journal.unshift(mapped);
+            else { var ji2 = store.journal.findIndex(function (x) { return x.id === mapped.id; }); if (ji2 >= 0) store.journal[ji2] = mapped; }
+            state.drawer = null; state.draft = null; toast(t + ' saved');
+          });
+          return;
+        }
+        if (wasNewJ) { j.id = 'a' + Date.now(); store.journal.unshift(j); }
         else { var ji = store.journal.findIndex(function (x) { return x.id === j.id; }); if (ji >= 0) store.journal[ji] = j; }
-        persist(); var t = j.title; state.drawer = null; state.draft = null; toast(t + ' saved'); break;
+        persist(); state.drawer = null; state.draft = null; toast(t + ' saved'); break;
       }
-      case 'deljrn': { var id4 = state.draft.id; store.journal = store.journal.filter(function (x) { return x.id !== id4; }); persist(); state.drawer = null; state.draft = null; toast('Post removed'); break; }
+      case 'deljrn': {
+        var id4 = state.draft.id;
+        if (remoteMode) {
+          remoteThen(DB.remote.deleteRow('journal_posts', id4), function () {
+            store.journal = store.journal.filter(function (x) { return x.id !== id4; });
+            state.drawer = null; state.draft = null; toast('Post removed');
+          });
+          return;
+        }
+        store.journal = store.journal.filter(function (x) { return x.id !== id4; }); persist(); state.drawer = null; state.draft = null; toast('Post removed'); break;
+      }
 
       // artists
       case 'newartist': state.drawer = 'artist'; state.isNew = true; state.draft = { id: null, name: 'New collaborator', medium: '', location: '', tint: '46,138,134', quote: '', bioText: '', instagram: '', portfolio: '', featured: false, status: 'active' }; render(); break;
@@ -761,18 +945,76 @@
       case 'saveartist': {
         var a = state.draft;
         if (!String(a.name).trim()) { toast('Give the artist a name first'); return; }
-        if (state.isNew) { a.id = 'art' + Date.now(); store.artists.push(a); }
+        var wasNewA = state.isNew; var an = a.name;
+        if (remoteMode) {
+          var rowA = DB.remote.unmap.artist(a);
+          if (wasNewA) { rowA.id = 'art' + Date.now(); rowA.position = store.artists.length; }
+          var opA = wasNewA ? DB.remote.insertRow('artists', rowA) : DB.remote.updateRow('artists', a.id, rowA);
+          remoteThen(opA, function (saved) {
+            var mapped = DB.remote.map.artist(saved);
+            if (wasNewA) store.artists.push(mapped);
+            else { var ai2 = store.artists.findIndex(function (x) { return x.id === mapped.id; }); if (ai2 >= 0) store.artists[ai2] = mapped; }
+            state.drawer = null; state.draft = null; toast(an + ' saved');
+          });
+          return;
+        }
+        if (wasNewA) { a.id = 'art' + Date.now(); store.artists.push(a); }
         else { var ai = store.artists.findIndex(function (x) { return x.id === a.id; }); if (ai >= 0) store.artists[ai] = a; }
-        persist(); var an = a.name; state.drawer = null; state.draft = null; toast(an + ' saved'); break;
+        persist(); state.drawer = null; state.draft = null; toast(an + ' saved'); break;
       }
-      case 'delartist': { var id5 = state.draft.id; store.artists = store.artists.filter(function (x) { return x.id !== id5; }); persist(); state.drawer = null; state.draft = null; toast('Artist removed'); break; }
+      case 'delartist': {
+        var id5 = state.draft.id;
+        if (remoteMode) {
+          remoteThen(DB.remote.deleteRow('artists', id5), function () {
+            store.artists = store.artists.filter(function (x) { return x.id !== id5; });
+            state.drawer = null; state.draft = null; toast('Artist removed');
+          });
+          return;
+        }
+        store.artists = store.artists.filter(function (x) { return x.id !== id5; }); persist(); state.drawer = null; state.draft = null; toast('Artist removed'); break;
+      }
 
       // payments + settings
-      case 'provtoggle': { var k = node.getAttribute('data-key'); store.providers[k].enabled = !store.providers[k].enabled; persist(); render(); break; }
-      case 'provmode': { var k2 = node.getAttribute('data-key'); store.providers[k2].mode = node.getAttribute('data-mode'); persist(); render(); break; }
-      case 'savepayments': persist(); toast('Payment configuration saved'); break;
-      case 'savesettings': persist(); toast('Settings saved'); break;
-      case 'resetdata': DB.reset(); store = DB.load(); state.drawer = null; state.draft = null; toast('Reset to sample data'); break;
+      case 'provtoggle': { var k = node.getAttribute('data-key'); store.providers[k].enabled = !store.providers[k].enabled; if (!remoteMode) persist(); render(); break; }
+      case 'provmode': { var k2 = node.getAttribute('data-key'); store.providers[k2].mode = node.getAttribute('data-mode'); if (!remoteMode) persist(); render(); break; }
+      case 'savepayments': {
+        if (remoteMode) { remoteThen(DB.remote.updateSettings({ providers: store.providers }), function () { toast('Payment configuration saved'); }); return; }
+        persist(); toast('Payment configuration saved'); break;
+      }
+      case 'savesettings': {
+        if (remoteMode) {
+          remoteThen(DB.remote.updateSettings({ store: store.settings.store, email: store.settings.email, currency: store.settings.currency }), function () { toast('Settings saved'); });
+          return;
+        }
+        persist(); toast('Settings saved'); break;
+      }
+      case 'resetdata': {
+        if (remoteMode) { toast('Reset is disabled while connected to Supabase — edit records directly instead.'); return; }
+        DB.reset(); store = DB.load(); state.drawer = null; state.draft = null; toast('Reset to sample data'); break;
+      }
+
+      // auth
+      case 'dosignin': {
+        var email = state.loginEmail.trim(), password = state.loginPassword;
+        if (!email || !password) { state.authErr = 'Enter your email and password.'; render(); return; }
+        state.authBusy = true; state.authErr = ''; render();
+        DB.remote.signIn(email, password).then(function (res) {
+          if (res && res.error) { state.authBusy = false; state.authErr = res.error.message || 'Sign-in failed.'; render(); return; }
+          var session = res && res.data && res.data.session;
+          return afterSession(session);
+        }).catch(function (err) {
+          state.authBusy = false; state.authErr = (err && err.message) || 'Sign-in failed.'; render();
+        });
+        return;
+      }
+      case 'signout': {
+        DB.remote.signOut().then(function () {
+          remoteMode = false; store = DB.load(); state.view = 'overview'; state.drawer = null; state.draft = null;
+          state.authState = 'login'; state.loginEmail = ''; state.loginPassword = ''; state.authErr = '';
+          render();
+        });
+        return;
+      }
     }
   }
 
@@ -780,10 +1022,19 @@
     var node = e.target.closest('[data-act]');
     if (!node) return;
     var act = node.getAttribute('data-act');
-    if (act === 'search' || act === 'settracking' || act === 'setcustnote') return; // inputs
+    if (act === 'search' || act === 'settracking' || act === 'setcustnote' || act === 'loginemail' || act === 'loginpassword') return; // inputs
     // sync any visible form values so toggles/saves keep typed text
     syncDOM();
     dispatch(act, node);
+  });
+
+  // Enter key submits the login form
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || state.authState !== 'login') return;
+    var node = e.target.closest('[data-act="loginemail"],[data-act="loginpassword"]');
+    if (!node) return;
+    e.preventDefault();
+    dispatch('dosignin', null);
   });
 
   // live inputs
@@ -795,17 +1046,121 @@
       state.search = node.value; searchFocused = true; render(); searchFocused = false;
     } else if (act === 'settracking') {
       var o = store.orders.find(function (x) { return x.id === state.selOrderId; });
-      if (o) { o.tracking = node.value; persist(); }
+      if (o) {
+        o.tracking = node.value;
+        if (remoteMode) {
+          clearTimeout(trackingDebounce);
+          var oid = o.id, trackVal = node.value;
+          trackingDebounce = setTimeout(function () {
+            DB.remote.updateOrder(oid, { tracking: trackVal }).catch(function (err) {
+              toast('Could not save tracking number: ' + (err && err.message || 'unknown error'));
+            });
+          }, 600);
+        } else persist();
+      }
     } else if (act === 'setcustnote') {
       var c = store.customers.find(function (x) { return x.id === state.selCustId; });
-      if (c) { c.note = node.value; persist(); }
+      if (c) {
+        c.note = node.value;
+        if (remoteMode) {
+          clearTimeout(custNoteDebounce);
+          var cid = c.id, noteVal = node.value;
+          custNoteDebounce = setTimeout(function () {
+            DB.remote.updateRow('customers', cid, { note: noteVal }).catch(function (err) {
+              toast('Could not save note: ' + (err && err.message || 'unknown error'));
+            });
+          }, 600);
+        } else persist();
+      }
+    } else if (act === 'loginemail') {
+      state.loginEmail = node.value;
+    } else if (act === 'loginpassword') {
+      state.loginPassword = node.value;
     }
   });
 
-  // refresh catalog if another tab (e.g. admin/storefront) changed it
-  window.addEventListener('storage', function (e) {
-    if (e.key === DB.KEY) { store = DB.load(); if (!state.drawer) render(); }
+  // product / artist / journal photo uploads -> Supabase Storage
+  document.addEventListener('change', function (e) {
+    var node = e.target.closest('[data-act="pickimage"]');
+    if (!node) return;
+    var file = node.files && node.files[0];
+    if (!file || !state.draft) return;
+    var folder = node.getAttribute('data-folder');
+    state.uploadingImage = folder; render();
+    DB.remote.uploadImage(file, folder).then(function (url) {
+      state.uploadingImage = null;
+      if (state.draft) state.draft.image_url = url;
+      render();
+    }).catch(function (err) {
+      state.uploadingImage = null; render();
+      toast('Upload failed: ' + (err && err.message || 'unknown error'));
+    });
   });
 
-  render();
+  // refresh catalog if another tab (e.g. admin/storefront) changed the local demo data
+  window.addEventListener('storage', function (e) {
+    if (!remoteMode && e.key === DB.KEY) { store = DB.load(); if (!state.drawer) render(); }
+  });
+
+  // ===================================================================
+  //  BOOT — decide local demo mode vs. live Supabase admin session
+  // ===================================================================
+  function shapeRemoteStore(catalog) {
+    var providers = DB.clone(DB.DEFAULTS.providers);
+    Object.keys(catalog.providers || {}).forEach(function (k) {
+      providers[k] = providers[k] ? Object.assign({}, providers[k], catalog.providers[k]) : catalog.providers[k];
+    });
+    return {
+      products: catalog.products, artists: catalog.artists, journal: catalog.journal,
+      collections: catalog.collections, discounts: catalog.discounts, customers: catalog.customers,
+      orders: catalog.orders, providers: providers,
+      settings: {
+        store: catalog.settings.store || DB.DEFAULTS.settings.store,
+        email: catalog.settings.email || DB.DEFAULTS.settings.email,
+        currency: catalog.settings.currency || DB.DEFAULTS.settings.currency
+      }
+    };
+  }
+
+  function afterSession(session) {
+    state.authEmail = (session && session.user && session.user.email) || '';
+    return DB.remote.checkIsAdmin().then(function (isAdmin) {
+      if (!isAdmin) { state.authBusy = false; state.authState = 'denied'; render(); return; }
+      return DB.remote.loadAdminCatalog().then(function (catalog) {
+        if (!catalog) {
+          state.authBusy = false; state.authState = 'denied';
+          state.authErr = 'Signed in, but could not load data from Supabase. Check the schema/RLS setup.';
+          render(); return;
+        }
+        remoteMode = true;
+        store = shapeRemoteStore(catalog);
+        state.authBusy = false; state.authState = 'ready'; render();
+      });
+    }).catch(function (err) {
+      state.authBusy = false; state.authState = 'denied';
+      state.authErr = (err && err.message) || 'Could not verify admin access.';
+      render();
+    });
+  }
+
+  function boot() {
+    render();
+    DB.remote.getConfig().then(function (cfg) {
+      if (!cfg || !cfg.configured) { state.authState = 'ready'; render(); return; }
+      DB.remote.onAuthChange(function (event) {
+        if (event === 'SIGNED_OUT' && remoteMode) {
+          remoteMode = false; store = DB.load(); state.view = 'overview';
+          state.drawer = null; state.draft = null; state.authState = 'login'; render();
+        }
+      });
+      return DB.remote.getSession().then(function (session) {
+        if (!session) { state.authState = 'login'; render(); return; }
+        return afterSession(session);
+      });
+    }).catch(function () {
+      state.authState = 'ready'; render();
+    });
+  }
+
+  boot();
 })();

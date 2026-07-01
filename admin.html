@@ -2,7 +2,9 @@
 <!--
   Oh my Gogh! — Studio Admin
   Manage products, orders, customers, discounts, collections, journal, artists,
-  payments and settings. Edits persist to localStorage and flow to the storefront.
+  payments and settings. Signs in with Supabase Auth and reads/writes the live
+  database (RLS admin-only); falls back to a local demo catalog if Supabase
+  isn't configured.
 -->
 <html lang="en">
 <head>
@@ -19,6 +21,7 @@
 <body>
   <div id="admin"><!-- admin renders here --></div>
   <script src="js/data.js"></script>
+  <script src="js/supabase.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>
