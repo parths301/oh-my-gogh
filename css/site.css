@@ -23,9 +23,39 @@ img { max-width: 100%; }
 @keyframes ftBlob { 0%,100%{border-radius:46% 54% 56% 44%/52% 48% 52% 48%} 50%{border-radius:56% 44% 42% 58%/44% 56% 44% 56%} }
 @keyframes ftDip { 0%,100%{transform:translateY(0)} 50%{transform:translateY(7px)} }
 @keyframes ftViewIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:none} }
+@keyframes ftMenuIn { from{opacity:0;transform:translateY(-8px) scale(.98)} to{opacity:1;transform:none} }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; } }
 
 .view-anim { animation: ftViewIn .5s cubic-bezier(.16,1,.3,1); }
+
+/* ---- responsive header / mobile nav ---- */
+.omg-burger { display: none; }
+@media (max-width: 760px) {
+  .omg-header { padding: 10px 16px !important; gap: 8px !important; }
+  .omg-wordmark { font-size: 22px !important; }
+  .omg-emblem-nav { width: 36px !important; height: 36px !important; }
+  .omg-burger { display: flex !important; }
+  .omg-nav {
+    position: fixed !important; top: 62px !important; right: 12px !important; left: 12px !important;
+    flex-direction: column !important; align-items: stretch !important; gap: 4px !important;
+    background: rgba(243,237,221,0.98) !important; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(21,49,92,0.14) !important; border-radius: 20px !important; padding: 10px !important;
+    box-shadow: 0 24px 50px -20px rgba(14,35,71,0.5) !important; transform-origin: top right;
+    animation: ftMenuIn .28s cubic-bezier(.16,1,.3,1) both; z-index: 600;
+  }
+  .omg-nav:not(.open) { display: none !important; }
+  .omg-nav button { width: 100%; justify-content: flex-start !important; padding: 13px 14px !important; border-radius: 13px !important; margin-left: 0 !important; }
+  .omg-navlabel { display: inline !important; font-size: 13px !important; letter-spacing: .14em !important; }
+  .omg-navblob { width: 20px !important; height: 20px !important; }
+  .omg-bagblob { width: 20px !important; height: 20px !important; }
+  .omg-marquee { font-size: 12px !important; letter-spacing: .16em !important; }
+}
+@media (max-width: 560px) {
+  .omg-hero-title { font-size: clamp(44px,16vw,84px) !important; }
+  .omg-hero-sub { font-size: 17px !important; margin-top: 14px !important; max-width: 30ch !important; }
+  .omg-hero-eyebrow { letter-spacing: .28em !important; }
+  .omg-hero-cta button { flex: 1 1 auto; min-width: 140px; }
+}
 
 /* ---- texture overlay ---- */
 .grain-fixed {
