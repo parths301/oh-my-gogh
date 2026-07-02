@@ -97,10 +97,12 @@ export default async function migrateFromSupabase({ container }: ExecArgs) {
     salesChannel = result[0]
   }
 
+  // NB: filter by title — Medusa seeds its own "Default Publishable API Key"
+  // on a fresh database, which is linked to the default sales channel, not ours.
   let { data: keys } = await query.graph({
     entity: "api_key",
     fields: ["id", "token", "title", "type"],
-    filters: { type: "publishable" },
+    filters: { type: "publishable", title: "Storefront" },
   })
   let publishableKey = keys[0]
   if (!publishableKey) {
