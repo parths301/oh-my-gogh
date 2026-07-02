@@ -220,37 +220,34 @@ Transform the "Coming Soon" landing page into a fully functional e-commerce life
 
 ---
 
-## 3. Technology Stack
+## 3. Technology Stack — AS BUILT (2026-07)
+
+> This section originally listed candidate technologies; it now records what
+> was actually chosen and shipped. Full detail and rationale: `ARCHITECTURE.md`.
 
 ### Frontend
-- **Framework**: React.js or Next.js (for server-side rendering and SEO)
-- **State Management**: Redux or Zustand
-- **Styling**: Tailwind CSS + custom CSS modules
-- **Components**: Headless UI components or custom components
-- **Animations**: Framer Motion for smooth interactions
-- **Image Handling**: Next.js Image or similar optimization
+- **Vanilla HTML/CSS/JS SPA** — no framework, no build step (deliberate:
+  instant deploys, zero dependency churn). `js/api.js` is the data layer.
+- **Animations**: hand-rolled CSS keyframes (brush strokes, floating blobs)
+- **Fallback**: bundled demo catalog if the backend is unreachable
 
-### Backend
-- **Platform**: Node.js with Express.js or similar
-- **Database**: MongoDB or PostgreSQL (for product catalog, users, orders)
-- **Authentication**: JWT or OAuth
-- **Payment Processing**: Stripe API integration
-- **Email Service**: SendGrid or similar for transactional emails
-- **File Storage**: AWS S3 or similar for product images
+### Backend — Medusa v2 (self-hosted commerce engine)
+- **Platform**: Node.js 20+/TypeScript (Medusa 2.17)
+- **Database**: PostgreSQL 16 · **Queues/events**: Redis 7 (production)
+- **Authentication**: Medusa customer auth (JWT) + admin users
+- **Payments**: Razorpay via `@sgftech/payment-razorpay` (test keys until sign-off)
+- **Email**: any SMTP provider via the custom notification module
+- **Content**: artists/journal as custom Medusa modules (admin = CMS;
+  a separate headless CMS was evaluated and rejected at this scale)
+- **Reviews / wishlists**: custom Medusa modules with moderation
+- **Search**: client-side over the hydrated catalog (Meilisearch deliberately
+  deferred until the catalog outgrows a single fetch)
 
 ### Hosting & Deployment
-- **Frontend Hosting**: Vercel, Netlify, or AWS
-- **Backend Hosting**: Heroku, AWS, or DigitalOcean
-- **CDN**: Cloudflare for image and asset delivery
-- **Domain**: ohmygogh.com (DNS management)
-- **SSL**: Let's Encrypt or managed SSL
-
-### Third-Party Integrations
-- **Payment**: Stripe (primary), PayPal (secondary)
-- **Email**: SendGrid for transactional/marketing emails
-- **Analytics**: Google Analytics, Segment
-- **CMS**: Contentful or Strapi (optional content management)
-- **Search**: Algolia or Elasticsearch (for product search)
+- **VPS** (Docker Compose: Postgres, Redis, Medusa server + worker) with
+  host **Nginx** + **Let's Encrypt**; storefront served as static files
+- **Domain**: ohmygogh.com — still on GitHub Pages until owner signs off
+- Full runbook: `deploy/README.md`
 
 ---
 

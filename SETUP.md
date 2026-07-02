@@ -7,7 +7,9 @@ archived under `legacy/`.
 
 ## Local development
 
-Prereqs: Node ≥ 20, Postgres 16, Redis (macOS: `brew install postgresql@16 redis && brew services start postgresql@16 redis`).
+Prereqs: Node ≥ 20 and Postgres 16 (macOS: `brew install postgresql@16 &&
+brew services start postgresql@16`). **Redis is NOT used locally** — dev runs
+Medusa's in-memory/local modules. See the known-issues note at the bottom.
 
 ```bash
 # 1. database
@@ -26,9 +28,9 @@ python3 -m http.server 4321                  # → http://localhost:4321
 ```
 
 `backend/.env` needs (see `.env.example` for the full annotated list):
-`DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `COOKIE_SECRET`,
+`DATABASE_URL`, `JWT_SECRET`, `COOKIE_SECRET`,
 `STORE_CORS`/`ADMIN_CORS`/`AUTH_CORS` (include `http://localhost:4321`),
-`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`.
+`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`. Leave `REDIS_URL` unset locally.
 
 `js/config.js` points the storefront at the backend (localhost automatically)
 and carries the **publishable key** — printed by the migration script, also
@@ -60,3 +62,23 @@ failure and completed stages are skipped.
 5. Owner sign-off → point `ohmygogh.com` at the VPS.
 6. Owner sign-off → swap Razorpay test keys for live keys in
    `deploy/.env.production`.
+
+## Known issues / limitations
+
+- **Redis-backed modules couldn't be verified on the dev MacBook.** With
+  `REDIS_URL` set, Medusa hangs at boot on this machine (reproduced across
+  Redis 8.8/6.2, Node 26/22, dev and production mode — the process idles
+  before binding the port; the BullMQ connections themselves establish fine).
+  Local dev therefore runs the default in-memory/local modules, which is fully
+  functional in one process. Production compose enables the Redis modules on
+  the standard node:22 + redis:7 Linux combination — **smoke-test the boot as
+  the first step of the VPS deploy**, and if it hangs there too, comment the
+  redis block in `backend/medusa-config.ts` and run single-process while
+  investigating.
+- The Razorpay flow requires a **phone number** (collected at checkout step 1
+  — the provider creates a Razorpay customer with it).
+- Historic migrated orders have no payment records (imported via the order
+  module); their legacy stage/tracking live in `order.metadata`.
+- E2E test data (a few `*@test.ohmygogh.com` customers/orders) exists in the
+  **local** database only. Seed the VPS with the migration script (fresh
+  import), not a pg_dump of the local DB, to avoid carrying it over.

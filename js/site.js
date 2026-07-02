@@ -57,7 +57,7 @@
     searchQ: '',
     saved: loadSaved(),
     checkoutStep: 1,
-    co: { email: '', first: '', last: '', address: '', apt: '', city: '', zip: '', country: '', ship: 'standard' },
+    co: { email: '', phone: '', first: '', last: '', address: '', apt: '', city: '', zip: '', country: '', ship: 'standard' },
     infoKey: 'shipping',
     contactSent: false,
     acctTab: 'orders'
@@ -167,7 +167,7 @@
     var form = document.querySelector('[data-checkout-form]');
     if (form) {
       var get = function (n) { var el = form.querySelector('[name=' + n + ']'); return el ? el.value : undefined; };
-      ['email', 'first', 'last', 'address', 'apt', 'city', 'zip', 'country'].forEach(function (k) {
+      ['email', 'phone', 'first', 'last', 'address', 'apt', 'city', 'zip', 'country'].forEach(function (k) {
         var v = get(k); if (v !== undefined) state.co[k] = v;
       });
     }
@@ -369,8 +369,14 @@
       first_name: co.first || '', last_name: co.last || '',
       address_1: co.address || '', address_2: co.apt || '',
       city: co.city || '', postal_code: co.zip || '',
-      country_code: countryCode(co.country)
+      country_code: countryCode(co.country),
+      phone: co.phone || ''
     };
+    if (!address.phone) {
+      resetBtn();
+      showToast('Please add a phone number in the Contact step — Razorpay needs it');
+      return;
+    }
 
     syncServerCart().then(function (cart) {
       if (!cart) throw new Error('backend unreachable');
@@ -562,15 +568,14 @@
   //  VIEWS
   // ===================================================================
   function homeView() {
-    var feat = ['p1', 'p2', 'p6', 'p3'];
+    var feat = products().slice(0, 4);
     var layout = [
       { w: 'clamp(280px,40vw,440px)', mt: '0px', rot: '-1.5deg' },
       { w: 'clamp(220px,26vw,300px)', mt: '72px', rot: '1.5deg' },
       { w: 'clamp(220px,28vw,320px)', mt: '18px', rot: '1deg' },
       { w: 'clamp(210px,24vw,280px)', mt: '108px', rot: '-1deg' }
     ];
-    var featured = feat.map(function (id, i) {
-      var p = findProduct(id);
+    var featured = feat.map(function (p, i) {
       return productCard(p, { w: layout[i].w, mt: layout[i].mt, rot: layout[i].rot, tilt: true });
     }).join('');
 
@@ -975,7 +980,8 @@
         '<p style="font-size:14px;color:rgba(21,49,92,.6);margin-bottom:22px">Where should we send your confirmation?</p>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
         '<div style="grid-column:span 2">' + field('email', 'Email', 'you@studio.com', co.email, 'email') + '</div>' +
-        field('first', 'First name', '', co.first) + field('last', 'Last name', '', co.last) + '</div>';
+        field('first', 'First name', '', co.first) + field('last', 'Last name', '', co.last) +
+        '<div style="grid-column:span 2">' + field('phone', 'Phone (for delivery & payment)', '+91 98765 43210', co.phone, 'tel') + '</div></div>';
     } else if (step === 2) {
       var standardFree = (t.subtotal - t.discount) >= shipFreeOver;
       var shipOpts = [

@@ -238,20 +238,15 @@
     });
   }
 
-  function initPaymentSession(providerId) {
+  // Razorpay sessions go through a custom backend route because the stock
+  // payment-sessions endpoint can't attach the cart context the Razorpay
+  // provider needs (see backend/src/api/store/razorpay/session).
+  function initPaymentSession() {
     return ensureCart().then(function (cart) {
       return getCart(cart.id).then(function (full) {
-        return req('/store/payment-collections', { body: { cart_id: cart.id } })
+        return req('/store/razorpay/session', { body: { cart_id: cart.id } })
           .then(function (d) {
-            return req('/store/payment-collections/' + d.payment_collection.id + '/payment-sessions', {
-              body: { provider_id: providerId }
-            });
-          })
-          .then(function (d) {
-            var sessions = (d.payment_collection && d.payment_collection.payment_sessions) || [];
-            var s = null;
-            sessions.forEach(function (x) { if (x.provider_id === providerId) s = x; });
-            return { cart: full, session: s };
+            return { cart: full, session: d.session };
           });
       });
     });

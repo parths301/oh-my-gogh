@@ -101,8 +101,13 @@ the VPS) `deploy/.env.production`. Never in git, never in chat.
 
 ## Running / deploying
 
-- Backend: `cd backend && npm run dev` (needs brew postgres@16 + redis
-  running; boot takes ~45–90s on the MacBook Air — don't panic early).
+- Backend: `cd backend && npm run dev` (needs brew postgres@16 running; boot
+  takes ~15–60s). **Leave `REDIS_URL` unset locally** — with it set, boot
+  hangs on this machine (see SETUP.md "Known issues"; redis modules are
+  production-only and must be smoke-tested at first VPS deploy). Note:
+  `medusa develop` spawns a child `medusa start` process — to restart it,
+  `pkill -f "@medusajs/cli"`, or an orphaned child keeps port 9000 serving
+  stale routes.
 - Storefront: `python3 -m http.server 4321` at repo root.
 - Reset + reseed local DB: `dropdb medusa_omg && createdb medusa_omg && npx
   medusa db:migrate && npx medusa user -e … -p … && npx medusa exec

@@ -20,21 +20,22 @@ export default async function orderPlacedHandler({
       "email",
       "currency_code",
       "total",
-      "items.title",
-      "items.quantity",
-      "items.unit_price",
-      "shipping_address.first_name",
+      "items.*",
+      "shipping_address.*",
     ],
     filters: { id: data.id },
   })
   if (!order?.email) return
 
   const lines = (order.items || [])
-    .map(
-      (i: any) =>
-        `<tr><td style="padding:6px 12px 6px 0">${i.title} × ${i.quantity}</td>` +
-        `<td style="padding:6px 0;text-align:right">₹${Math.round(i.unit_price * i.quantity)}</td></tr>`
-    )
+    .map((i: any) => {
+      const qty = Number(i.quantity) || 1
+      const unit = Number(i.unit_price) || 0
+      return (
+        `<tr><td style="padding:6px 12px 6px 0">${i.title} × ${qty}</td>` +
+        `<td style="padding:6px 0;text-align:right">₹${Math.round(unit * qty)}</td></tr>`
+      )
+    })
     .join("")
 
   await notifications.createNotifications({

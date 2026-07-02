@@ -51,6 +51,17 @@ either restore a `pg_dump` of the local `medusa_omg` database into the
 postgres container, or copy `.secrets/supabase-export/` up and run the
 migration script (commands printed by `deploy.sh`).
 
+## First-boot smoke test (important)
+
+The Redis-backed modules (event bus / workflow engine / locking) could not be
+verified on the dev machine (boot hang — details in SETUP.md "Known issues").
+They run here on the standard node:22 + redis:7 Linux combination, which is
+Medusa's reference setup, but **verify `curl localhost:9000/health` succeeds
+within ~2 minutes of the first `deploy.sh`**. If it never comes up, comment
+the `process.env.REDIS_URL` block in `backend/medusa-config.ts`, set
+`MEDUSA_WORKER_MODE=shared` on the `medusa` service, stop `medusa-worker`,
+and redeploy single-process while investigating.
+
 ## Ops notes
 
 - Logs: `docker compose -f deploy/docker-compose.yml logs -f medusa`
