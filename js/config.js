@@ -11,5 +11,7 @@ window.OMG_CONFIG = {
   medusaUrl: (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
     ? 'http://localhost:9000'
     : 'https://api.ohmygogh.com',
-  publishableKey: 'pk_61afe1bd4ef68681e6b9bbe69edc09cc0459a467f58e902e43ec9fd46f98d236'
+  publishableKey: 'pk_61afe1bd4ef68681e6b9bbe69edc09cc0459a467f58e902e43ec9fd46f98d236',
+  // Razorpay key *id* — public by design (the secret stays on the backend)
+  razorpayKeyId: 'rzp_test_T7qzjDS0IPEJOL'
 };

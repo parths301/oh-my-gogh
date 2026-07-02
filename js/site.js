@@ -1,6 +1,8 @@
 /* ============================================================
    Oh my Gogh! — storefront SPA (vanilla)
    Faithful port of the imported "Oh My Gogh.dc.html" design.
+   Data/commerce: Medusa backend via js/api.js (falls back to the
+   bundled demo catalog in js/data.js when the backend is down).
    ============================================================ */
 (function () {
   'use strict';
@@ -44,6 +46,10 @@
     artistName: null,
     promo: '',
     promoOk: false,
+    acctMode: 'signin',
+    acctError: '',
+    acctBusy: false,
+    reviews: {},
     orderNo: null,
     newsDone: false,
     toast: '',
@@ -70,8 +76,14 @@
   function saveSaved() { try { localStorage.setItem(SAVED_KEY, JSON.stringify(state.saved)); } catch (e) {} }
   function toggleSave(id) {
     var i = state.saved.indexOf(id);
-    if (i >= 0) state.saved.splice(i, 1); else state.saved.push(id);
+    var adding = i < 0;
+    if (adding) state.saved.push(id); else state.saved.splice(i, 1);
     saveSaved();
+    // mirror to the server wishlist when signed in (fire and forget)
+    if (window.OMG.api && window.OMG.api.configured && window.OMG.api.hasToken()) {
+      (adding ? window.OMG.api.wishlist.add(id) : window.OMG.api.wishlist.remove(id))
+        .catch(function () {});
+    }
   }
 
   function loadAccount() {
@@ -80,6 +92,42 @@
     } catch (e) { return { authed: false, profile: { name: '', email: '', address: '' } }; }
   }
   function saveAccount() { try { localStorage.setItem(ACCOUNT_KEY, JSON.stringify(acct)); } catch (e) {} }
+
+  // real customer session (Medusa) — fills acct + orders + synced wishlist
+  var acctOrders = [];
+  function adoptCustomer(customer) {
+    if (!customer) return;
+    acct.authed = true;
+    acct.customer = customer;
+    acct.profile.name = [customer.first_name, customer.last_name].filter(Boolean).join(' ');
+    acct.profile.email = customer.email;
+    refreshOrders();
+    syncWishlist();
+  }
+  function refreshOrders() {
+    if (!apiMode || !window.OMG.api.hasToken()) return;
+    window.OMG.api.auth.orders().then(function (orders) {
+      acctOrders = orders;
+      if (state.view === 'account') render();
+    });
+  }
+  function syncWishlist() {
+    if (!apiMode || !window.OMG.api.hasToken()) return;
+    var localSaved = state.saved.slice();
+    window.OMG.api.wishlist.list().then(function (serverIds) {
+      // push local-only saves up, then adopt the merged server list
+      var toAdd = localSaved.filter(function (id) {
+        return serverIds.indexOf(id) < 0 && /^prod_/.test(id);
+      });
+      var ops = Promise.resolve(serverIds);
+      toAdd.forEach(function (id) {
+        ops = ops.then(function () { return window.OMG.api.wishlist.add(id); });
+      });
+      return ops;
+    }).then(function (ids) {
+      if (Array.isArray(ids)) { state.saved = ids; saveSaved(); render(); }
+    }).catch(function () {});
+  }
 
   // ----- helpers -----------------------------------------------------
   var ACCENT = { shop: '#E0A93A', artists: '#2E8A87', journal: '#15315C', about: '#C0561E' };
@@ -147,8 +195,31 @@
     state.pid = id;
     state.size = (p && p.cat === 'Apparel') ? 'M' : 'One';
     state.view = 'product';
+    state.reviewSent = false;
+    state.reviewRating = 5;
     window.scrollTo(0, 0);
     render();
+    // lazy-load reviews for this piece
+    if (p && window.OMG.api && window.OMG.api.configured && !state.reviews[p.id]) {
+      window.OMG.api.reviews.list(p.id).then(function (d) {
+        state.reviews[p.id] = d;
+        if (state.view === 'product' && state.pid === id) render();
+      });
+    }
+  }
+
+  function starRow(avg, size) {
+    var out = '';
+    for (var i = 1; i <= 5; i++) {
+      out += '<span style="color:' + (i <= Math.round(avg) ? '#E0A93A' : 'rgba(21,49,92,.25)') + ';font-size:' + (size || 15) + 'px">★</span>';
+    }
+    return out;
+  }
+
+  function variantIdFor(p, size) {
+    if (!p || !p.variants) return null;
+    for (var i = 0; i < p.variants.length; i++) if (p.variants[i].size === size) return p.variants[i].id;
+    return p.variants[0] ? p.variants[0].id : null;
   }
 
   function addToCart(p, size) {
@@ -156,8 +227,9 @@
     var i = -1;
     for (var k = 0; k < state.cart.length; k++) if (state.cart[k].id === p.id && state.cart[k].size === s) { i = k; break; }
     if (i >= 0) state.cart[i].qty += 1;
-    else state.cart.push({ id: p.id, name: p.name, price: p.price, tint: p.tint, cat: p.cat, size: s, qty: 1 });
+    else state.cart.push({ id: p.id, name: p.name, price: p.price, tint: p.tint, cat: p.cat, size: s, qty: 1, variantId: variantIdFor(p, s) });
     saveCart();
+    markCartDirty();
     showToast(p.name + ' added to your bag');
   }
 
@@ -169,18 +241,69 @@
         break;
       }
     }
-    saveCart(); render();
+    saveCart(); markCartDirty(); render();
   }
   function removeLine(id, size) {
     state.cart = state.cart.filter(function (c) { return !(c.id === id && c.size === size); });
-    saveCart(); render();
+    saveCart(); markCartDirty(); render();
   }
 
-  // payment/shipping config — overridden from /api/config when the site is live
-  var paymentsLive = false, rzpKeyId = '', shipFreeOver = 75, shipFlat = 8;
+  // payment/shipping config — the Medusa backend is server truth for all
+  // pricing; these local numbers only drive the offline/demo fallback.
+  var API = (window.OMG && window.OMG.api) || null;
+  var apiMode = !!(API && API.configured);
+  var paymentsLive = false; // true once the Medusa backend answers (Razorpay via payment sessions)
+  var rzpKeyId = (window.OMG_CONFIG && window.OMG_CONFIG.razorpayKeyId) || '';
+  var shipFreeOver = 2000, shipFlat = 99, EXPRESS_SHIPPING = 299;
 
-  var EXPRESS_SHIPPING = 14;
+  // server cart snapshot — kept in sync (debounced) with the local cart so
+  // totals/discounts/free-shipping come from Medusa when it's reachable
+  var sv = { cart: null, dirty: true, timer: null, syncing: false };
+
+  function cartHasVariants() {
+    return state.cart.length > 0 && state.cart.every(function (c) { return !!c.variantId; });
+  }
+
+  function markCartDirty() {
+    sv.dirty = true;
+    if (!apiMode || !paymentsLive) return;
+    if (sv.timer) clearTimeout(sv.timer);
+    sv.timer = setTimeout(function () { syncServerCart(); }, 450);
+  }
+
+  function syncServerCart() {
+    if (!apiMode || !paymentsLive || sv.syncing) return Promise.resolve(null);
+    if (!cartHasVariants()) { sv.cart = null; sv.dirty = false; render(); return Promise.resolve(null); }
+    sv.syncing = true;
+    var lines = state.cart.map(function (c) { return { variantId: c.variantId, qty: c.qty }; });
+    return API.cart.sync(lines).then(function (cart) {
+      var after = state.promo && state.promoOk
+        ? API.cart.applyPromo(state.promo.trim().toUpperCase()).catch(function () { return cart; })
+        : Promise.resolve(cart);
+      return after;
+    }).then(function (cart) {
+      sv.cart = cart; sv.dirty = false; sv.syncing = false;
+      render();
+      return cart;
+    }).catch(function (e) {
+      sv.syncing = false; sv.cart = null; sv.dirty = false;
+      console.warn('[omg] cart sync failed:', e.message);
+      return null;
+    });
+  }
+
   function cartTotals() {
+    // exact server totals when we have a fresh snapshot
+    if (sv.cart && !sv.dirty && apiMode && paymentsLive) {
+      var c = sv.cart;
+      return {
+        subtotal: Number(c.item_subtotal != null ? c.item_subtotal : c.subtotal) || 0,
+        discount: Number(c.discount_total) || 0,
+        shipping: Number(c.shipping_total) || 0,
+        total: Number(c.total) || 0,
+        server: true
+      };
+    }
     var subtotal = state.cart.reduce(function (s, c) { return s + c.price * c.qty; }, 0);
     var discount = state.promoOk ? subtotal * 0.15 : 0;
     var shipping;
@@ -190,7 +313,7 @@
     return { subtotal: subtotal, discount: discount, shipping: shipping, total: subtotal - discount + shipping };
   }
 
-  // demo fallback — used when Razorpay isn't configured yet
+  // demo fallback — used when the backend isn't reachable
   function placeOrder() {
     var no = 'OMG-' + Math.floor(100000 + Math.random() * 900000);
     state.orderNo = no;
@@ -214,6 +337,16 @@
     });
   }
 
+  // best-effort ISO country code from the free-text country field
+  var COUNTRY_CODES = { india: 'in', in: 'in', 'united states': 'us', usa: 'us', us: 'us',
+    'united kingdom': 'gb', uk: 'gb', gb: 'gb', sweden: 'se', se: 'se', japan: 'jp', jp: 'jp',
+    mexico: 'mx', mx: 'mx', ireland: 'ie', ie: 'ie', germany: 'de', de: 'de', france: 'fr',
+    fr: 'fr', spain: 'es', es: 'es', italy: 'it', it: 'it', denmark: 'dk', dk: 'dk' };
+  function countryCode(raw) {
+    var k = String(raw || '').trim().toLowerCase();
+    return COUNTRY_CODES[k] || 'in';
+  }
+
   function collectCustomer() {
     var co = state.co;
     var name = [co.first, co.last].filter(Boolean).join(' ');
@@ -221,44 +354,73 @@
     return { name: name, email: co.email || '', address: addr };
   }
 
-  // real checkout: server prices the cart, creates a Razorpay order, opens
-  // Razorpay Checkout, then verifies + records the order server-side.
+  // real checkout: sync the cart to Medusa, attach email/address + shipping
+  // method, open a Razorpay payment session, then complete the cart.
   function startCheckout(form) {
     var customer = collectCustomer();
-    if (!paymentsLive) { placeOrder(); return; }   // demo mode until keys are set
-    var items = state.cart.map(function (c) { return { id: c.id, size: c.size, qty: c.qty }; });
-    var code = state.promoOk ? (state.promo || '') : '';
+    if (!apiMode || !paymentsLive || !cartHasVariants()) { placeOrder(); return; }
+
     var btn = form ? form.querySelector('[data-act="checkoutnext"]') : null;
     var resetBtn = function () { if (btn) { btn.disabled = false; btn.textContent = 'Pay ' + fmt(cartTotals().total); } };
-    if (btn) { btn.disabled = true; btn.textContent = 'Contacting Razorpay…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Contacting the studio…'; }
 
-    fetch('/api/razorpay/create-order', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: items, code: code })
-    }).then(function (r) { return r.json(); }).then(function (order) {
-      if (!order || !order.orderId) throw new Error((order && order.error) || 'order_failed');
-      return loadRazorpay().then(function (Razorpay) {
-        var rzp = new Razorpay({
-          key: order.keyId, order_id: order.orderId, amount: order.amount, currency: order.currency,
-          name: 'Oh my Gogh!', description: 'Wearable art & studio goods', image: 'assets/omg-emblem.png',
-          prefill: { name: customer.name, email: customer.email }, theme: { color: '#15315C' },
-          handler: function (resp) {
-            fetch('/api/razorpay/verify', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(Object.assign({}, resp, { customer: customer, items: items, code: code }))
-            }).then(function (r) { return r.json(); }).then(function (out) {
-              state.orderNo = (out && out.orderNo) || 'OMG-PAID';
-              state.view = 'confirm'; state.cart = []; state.promo = ''; state.promoOk = false;
-              saveCart(); window.scrollTo(0, 0); render();
-            }).catch(function () {
-              state.orderNo = 'OMG-PAID'; state.view = 'confirm'; state.cart = [];
-              saveCart(); render();
-            });
-          },
-          modal: { ondismiss: resetBtn }
+    var co = state.co;
+    var address = {
+      first_name: co.first || '', last_name: co.last || '',
+      address_1: co.address || '', address_2: co.apt || '',
+      city: co.city || '', postal_code: co.zip || '',
+      country_code: countryCode(co.country)
+    };
+
+    syncServerCart().then(function (cart) {
+      if (!cart) throw new Error('backend unreachable');
+      return API.cart.setDetails(co.email, address);
+    }).then(function () {
+      return API.cart.shippingOptions();
+    }).then(function (options) {
+      if (!options.length) throw new Error('no shipping to your country yet');
+      var want = state.co.ship === 'express' ? 'express' : 'standard';
+      var opt = null;
+      options.forEach(function (o) {
+        var code = (o.type && o.type.code) || '';
+        if (code === want) opt = o;
+      });
+      opt = opt || options[0];
+      return API.cart.addShippingMethod(opt.id);
+    }).then(function () {
+      return API.cart.initPaymentSession('pp_razorpay_razorpay');
+    }).then(function (r) {
+      var session = r.session;
+      var rzpOrderId = session && session.data && (session.data.id || session.data.order_id);
+      if (!rzpOrderId) throw new Error('payment session failed');
+      if (btn) btn.textContent = 'Opening Razorpay…';
+      return API.cart.get(API.cart.id()).then(function (freshCart) {
+        return loadRazorpay().then(function (Razorpay) {
+          var rzp = new Razorpay({
+            key: rzpKeyId,
+            order_id: rzpOrderId,
+            amount: Math.round(Number(freshCart.total) * 100),
+            currency: String(freshCart.currency_code || 'inr').toUpperCase(),
+            name: 'Oh my Gogh!', description: 'Wearable art & studio goods', image: 'assets/omg-emblem.png',
+            prefill: { name: customer.name, email: customer.email }, theme: { color: '#15315C' },
+            handler: function () {
+              if (btn) btn.textContent = 'Confirming order…';
+              API.cart.complete().then(function (order) {
+                state.orderNo = '#' + (order.display_id || order.id);
+                state.view = 'confirm'; state.cart = []; state.promo = ''; state.promoOk = false;
+                state.checkoutStep = 1; sv.cart = null; sv.dirty = true;
+                saveCart(); window.scrollTo(0, 0); render();
+                refreshOrders();
+              }).catch(function (e) {
+                showToast('Payment received — confirming order… ' + e.message);
+                resetBtn();
+              });
+            },
+            modal: { ondismiss: resetBtn }
+          });
+          rzp.on('payment.failed', function () { showToast('Payment failed — please try again'); resetBtn(); });
+          rzp.open();
         });
-        rzp.on('payment.failed', function () { showToast('Payment failed — please try again'); resetBtn(); });
-        rzp.open();
       });
     }).catch(function (err) {
       resetBtn();
@@ -532,12 +694,15 @@
     }).join('');
     var details = [
       { label: 'Materials', text: p.medium + '. Sourced and finished in small batches; slight variation is part of the charm.' },
-      { label: 'Shipping', text: 'Ships in 2–4 business days, wrapped in acid-free tissue. Free over $75.' },
+      { label: 'Shipping', text: 'Ships in 2–4 business days, wrapped in acid-free tissue. Free over ₹2000.' },
       { label: 'Care', text: 'Cold wash inside out, lay flat to dry. Never iron directly over a print.' }
     ].map(function (d) {
       return '<div style="padding:18px 0;border-bottom:1px solid rgba(21,49,92,.14)"><div style="font-family:\'Space Mono\',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#C0561E">' + esc(d.label) + '</div><p style="font-size:14px;line-height:1.6;color:#2C436B;margin-top:6px">' + esc(d.text) + '</p></div>';
     }).join('');
-    var related = products().filter(function (x) { return x.id !== p.id; }).slice(0, 3).map(function (x) {
+    // related pieces: same room first, then the rest of the hang
+    var relatedPool = products().filter(function (x) { return x.id !== p.id && x.cat === p.cat; })
+      .concat(products().filter(function (x) { return x.id !== p.id && x.cat !== p.cat; }));
+    var related = relatedPool.slice(0, 3).map(function (x) {
       return '<div class="tile-lift" data-act="open" data-id="' + x.id + '" style="cursor:pointer">' +
         '<div style="position:relative;background:#FBF6EA;padding:12px;box-shadow:0 26px 52px -30px rgba(14,35,71,.5),0 0 0 1px rgba(21,49,92,.1)">' +
         '<div style="position:relative;aspect-ratio:4/5;overflow:hidden;background:' + cardBg(x.tint) + '">' + artLayer(x) + '</div></div>' +
@@ -546,6 +711,45 @@
     }).join('');
     var stockLabel = p.inventory === 0 ? '<span style="font-size:13px;color:#C0561E;font-family:\'Space Mono\',monospace;letter-spacing:.05em">● Sold out</span>'
       : '<span style="font-size:13px;color:#2E8A87;font-family:\'Space Mono\',monospace;letter-spacing:.05em">● In stock</span>';
+
+    // ---- reviews (loaded lazily via the backend) ----
+    var rv = state.reviews[p.id];
+    var ratingRow = (rv && rv.rating && rv.rating.count > 0)
+      ? '<div style="display:flex;align-items:center;gap:8px;margin-top:10px">' + starRow(rv.rating.average) +
+        '<span style="font-family:\'Space Mono\',monospace;font-size:12px;color:rgba(21,49,92,.6)">' + rv.rating.average + ' · ' + rv.rating.count + ' review' + (rv.rating.count === 1 ? '' : 's') + '</span></div>'
+      : '';
+    var reviewCards = (rv && rv.reviews && rv.reviews.length)
+      ? rv.reviews.map(function (r) {
+          var when = r.created_at ? new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : '';
+          return '<div style="background:#FBF6EA;border:1px solid rgba(21,49,92,.12);border-radius:16px;padding:20px 22px">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><div>' + starRow(r.rating, 13) + '</div>' +
+            '<span style="font-family:\'Space Mono\',monospace;font-size:11px;color:rgba(21,49,92,.5)">' + esc(r.display_name) + (when ? ' · ' + when : '') + '</span></div>' +
+            (r.title ? '<h3 style="font-family:\'Playfair Display\',serif;font-size:17px;font-weight:700;margin-top:10px">' + esc(r.title) + '</h3>' : '') +
+            (r.body ? '<p style="font-size:14px;line-height:1.7;color:#2C436B;margin-top:6px">' + esc(r.body) + '</p>' : '') +
+            '</div>';
+        }).join('')
+      : '<p style="font-size:14px;color:rgba(21,49,92,.55)">No reviews yet — be the first to hang an opinion.</p>';
+    var ratingPick = [1, 2, 3, 4, 5].map(function (n) {
+      return '<button type="button" data-act="setrating" data-rating="' + n + '" style="background:none;border:none;cursor:pointer;font-size:26px;padding:2px;color:' + (n <= (state.reviewRating || 5) ? '#E0A93A' : 'rgba(21,49,92,.25)') + '">★</button>';
+    }).join('');
+    var reviewForm = state.reviewSent
+      ? '<p style="font-family:\'Yellowtail\',cursive;font-size:26px;color:#2E8A87">Thanks — your review is awaiting moderation.</p>'
+      : '<form data-act="reviewform" style="display:flex;flex-direction:column;gap:12px;background:#FBF6EA;border:1px solid rgba(21,49,92,.12);border-radius:16px;padding:22px">' +
+        '<div style="font-family:\'Playfair Display\',serif;font-size:19px;font-weight:700">Review this piece</div>' +
+        '<div style="display:flex;align-items:center;gap:4px">' + ratingPick + '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+        '<input name="rname" placeholder="Your name" value="' + esc(acct.profile.name || '') + '" style="font-size:14px;color:#15315C;background:#F3EDDD;border:1.5px solid rgba(21,49,92,.2);border-radius:10px;padding:11px 13px;outline:none">' +
+        '<input name="remail" type="email" placeholder="Email (not shown)" value="' + esc(acct.profile.email || '') + '" style="font-size:14px;color:#15315C;background:#F3EDDD;border:1.5px solid rgba(21,49,92,.2);border-radius:10px;padding:11px 13px;outline:none"></div>' +
+        '<input name="rtitle" placeholder="Headline (optional)" style="font-size:14px;color:#15315C;background:#F3EDDD;border:1.5px solid rgba(21,49,92,.2);border-radius:10px;padding:11px 13px;outline:none">' +
+        '<textarea name="rbody" rows="3" placeholder="How does it wear? How does it feel?" style="font-size:14px;line-height:1.5;color:#15315C;background:#F3EDDD;border:1.5px solid rgba(21,49,92,.2);border-radius:10px;padding:11px 13px;outline:none;resize:vertical;font-family:\'Space Grotesk\',sans-serif"></textarea>' +
+        '<button type="submit" style="align-self:flex-start;font-family:\'Space Grotesk\',sans-serif;font-size:14px;font-weight:600;color:#F3EDDD;background:#15315C;border:none;border-radius:100px;padding:12px 26px;cursor:pointer">Submit review</button></form>';
+    var reviewsSection = '<div style="margin-top:clamp(50px,6vw,80px)">' +
+      '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:22px">' +
+      '<h2 style="font-family:\'Playfair Display\',serif;font-size:clamp(24px,3vw,36px);font-weight:800">On the wall of opinions</h2>' +
+      (rv && rv.rating && rv.rating.count ? '<span style="font-family:\'Space Mono\',monospace;font-size:12px;color:rgba(21,49,92,.55)">' + rv.rating.average + ' / 5 from ' + rv.rating.count + '</span>' : '') + '</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:clamp(20px,3vw,36px);align-items:start">' +
+      '<div style="display:flex;flex-direction:column;gap:14px">' + reviewCards + '</div>' +
+      '<div>' + reviewForm + '</div></div></div>';
 
     return '<div style="max-width:1180px;margin:0 auto;padding:clamp(28px,4vw,48px) clamp(20px,6vw,60px) 60px">' +
       '<button data-act="go" data-view="shop" style="font-family:\'Space Mono\',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:rgba(21,49,92,.7);background:none;border:none;cursor:pointer;margin-bottom:30px">← Back to the collection</button>' +
@@ -556,7 +760,7 @@
       '<div style="padding-top:6px">' +
       '<div style="font-family:\'Space Mono\',monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:#C0561E">' + esc(p.cat) + ' · ' + esc(p.medium) + '</div>' +
       '<h1 style="font-family:\'Playfair Display\',serif;font-size:clamp(30px,4vw,50px);font-weight:800;line-height:1.05;margin-top:12px">' + esc(p.name) + '</h1>' +
-      '<div style="display:flex;align-items:center;gap:14px;margin-top:14px"><span style="font-family:\'Space Mono\',monospace;font-size:26px;color:#15315C">' + fmt(p.price) + '</span>' + stockLabel + '</div>' +
+      '<div style="display:flex;align-items:center;gap:14px;margin-top:14px"><span style="font-family:\'Space Mono\',monospace;font-size:26px;color:#15315C">' + fmt(p.price) + '</span>' + stockLabel + '</div>' + ratingRow +
       '<p style="font-size:16px;line-height:1.75;color:#2C436B;margin-top:20px;max-width:48ch">' + esc(p.blurb) + '</p>' +
       (hasSizes ? '<div style="margin-top:28px"><div style="font-family:\'Space Mono\',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:rgba(21,49,92,.6);margin-bottom:12px">Size</div><div style="display:flex;gap:10px;flex-wrap:wrap">' + sizes + '</div></div>' : '') +
       '<div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:30px">' +
@@ -570,6 +774,7 @@
       (findArtist(p.artist) ? '<span style="font-family:\'Space Mono\',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#C0561E">View →</span>' : '') +
       '</div>' +
       '</div></div>' +
+      reviewsSection +
       '<div style="margin-top:clamp(60px,7vw,96px)"><h2 style="font-family:\'Playfair Display\',serif;font-size:clamp(24px,3vw,36px);font-weight:800;margin-bottom:28px">More from the hang</h2>' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:clamp(22px,2.5vw,40px)">' + related + '</div></div></div>';
   }
@@ -794,7 +999,7 @@
       stepBody = '<h2 style="font-family:\'Playfair Display\',serif;font-size:clamp(24px,3vw,34px);font-weight:800;margin-bottom:6px">Payment</h2>' +
         '<p style="font-size:14px;color:rgba(21,49,92,.6);margin-bottom:22px">All transactions are secure and encrypted.</p>' +
         '<div style="background:#FBF6EA;border:1px solid rgba(21,49,92,.12);border-radius:16px;padding:22px">' +
-        '<p style="font-size:14px;line-height:1.7;color:#2C436B">' + (paymentsLive ? 'Pay securely with Razorpay — UPI, cards and netbanking. A Razorpay window will open when you place your order.' : 'Preview mode — live payment turns on once Razorpay keys are configured. Placing the order will simulate a completed purchase.') + '</p></div>';
+        '<p style="font-size:14px;line-height:1.7;color:#2C436B">' + (paymentsLive ? 'Pay securely with Razorpay — UPI, cards and netbanking. A Razorpay window will open when you place your order.' : 'Preview mode — the studio backend isn\'t reachable right now, so placing the order will simulate a completed purchase.') + '</p></div>';
     }
 
     var summaryLines = state.cart.map(function (c) {
@@ -841,7 +1046,7 @@
   var INFO_CONTENT = {
     shipping: { kind: 'doc', eyebrow: 'Support', title: 'Shipping & Returns', intro: 'Everything ships from the studio, wrapped in acid-free tissue with a hand-written note.', sections: [
       ['Processing', 'Orders are packed within 2–4 business days. You’ll get a tracking link the moment your piece leaves the studio.'],
-      ['Rates', 'Free shipping on orders over $75, a flat $8 otherwise. International rates are calculated at checkout.'],
+      ['Rates', 'Free shipping on orders over ₹2000, a flat ₹99 otherwise. Express delivery is ₹299 at checkout.'],
       ['Returns', 'Unworn pieces can come home within 30 days for a full refund. Originals and final-sale items are noted on their product page.'],
       ['Exchanges', 'Wrong size? Email us and we’ll cross-ship the right one as soon as the first is on its way back.']
     ] },
@@ -967,15 +1172,30 @@
   ];
   function accountView() {
     if (!acct.authed) {
+      var isReg = state.acctMode === 'register';
+      var nameFields = isReg
+        ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">' +
+          '<label style="display:block"><span style="font-family:\'Space Mono\',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(21,49,92,.55)">First name</span><input name="first" required style="width:100%;margin-top:6px;font-size:15px;color:#15315C;background:#F3EDDD;border:1.5px solid rgba(21,49,92,.2);border-radius:12px;padding:13px 15px;outline:none"></label>' +
+          '<label style="display:block"><span style="font-family:\'Space Mono\',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(21,49,92,.55)">Last name</span><input name="last" style="width:100%;margin-top:6px;font-size:15px;color:#15315C;background:#F3EDDD;border:1.5px solid rgba(21,49,92,.2);border-radius:12px;padding:13px 15px;outline:none"></label></div>'
+        : '';
+      var errorRow = state.acctError
+        ? '<p style="text-align:center;font-size:13px;color:#C0561E;background:rgba(192,86,30,.08);border-radius:10px;padding:10px">' + esc(state.acctError) + '</p>'
+        : '';
+      var offlineNote = (!apiMode || !paymentsLive)
+        ? '<p style="text-align:center;font-size:12px;color:rgba(21,49,92,.5);margin-top:4px">Offline preview — accounts are simulated until the backend is reachable.</p>'
+        : '';
       return '<div style="max-width:460px;margin:0 auto;padding:clamp(40px,7vw,90px) clamp(20px,6vw,40px) 70px">' +
         '<div style="text-align:center;margin-bottom:30px"><img src="assets/omg-emblem.png" alt="" style="width:72px;height:72px;border-radius:50%;box-shadow:0 12px 30px -12px rgba(14,35,71,.5)">' +
-        '<h1 style="font-family:\'Playfair Display\',serif;font-size:clamp(28px,4vw,40px);font-weight:800;margin-top:18px">Welcome to the studio</h1>' +
-        '<p style="font-size:15px;color:rgba(21,49,92,.65);margin-top:6px">Sign in to track orders and keep your saved pieces.</p></div>' +
+        '<h1 style="font-family:\'Playfair Display\',serif;font-size:clamp(28px,4vw,40px);font-weight:800;margin-top:18px">' + (isReg ? 'Join the studio' : 'Welcome to the studio') + '</h1>' +
+        '<p style="font-size:15px;color:rgba(21,49,92,.65);margin-top:6px">' + (isReg ? 'Create an account to track orders and keep your saved pieces.' : 'Sign in to track orders and keep your saved pieces.') + '</p></div>' +
         '<form data-act="signin" style="display:flex;flex-direction:column;gap:14px;background:#FBF6EA;border:1px solid rgba(21,49,92,.12);padding:clamp(24px,4vw,34px)">' +
+        nameFields +
         '<label style="display:block"><span style="font-family:\'Space Mono\',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(21,49,92,.55)">Email</span><input name="email" type="email" required placeholder="you@studio.com" style="width:100%;margin-top:6px;font-size:15px;color:#15315C;background:#F3EDDD;border:1.5px solid rgba(21,49,92,.2);border-radius:12px;padding:13px 15px;outline:none"></label>' +
-        '<label style="display:block"><span style="font-family:\'Space Mono\',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(21,49,92,.55)">Password</span><input name="password" type="password" required placeholder="••••••••" style="width:100%;margin-top:6px;font-size:15px;color:#15315C;background:#F3EDDD;border:1.5px solid rgba(21,49,92,.2);border-radius:12px;padding:13px 15px;outline:none"></label>' +
-        '<button type="submit" style="margin-top:6px;font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:600;color:#F3EDDD;background:#15315C;border:none;border-radius:100px;padding:15px;cursor:pointer">Sign in</button>' +
-        '<p style="text-align:center;font-size:13px;color:rgba(21,49,92,.6);margin-top:4px">New here? Just sign in — we\'ll set up your studio account.</p></form></div>';
+        '<label style="display:block"><span style="font-family:\'Space Mono\',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(21,49,92,.55)">Password</span><input name="password" type="password" required minlength="6" placeholder="••••••••" style="width:100%;margin-top:6px;font-size:15px;color:#15315C;background:#F3EDDD;border:1.5px solid rgba(21,49,92,.2);border-radius:12px;padding:13px 15px;outline:none"></label>' +
+        errorRow +
+        '<button type="submit" ' + (state.acctBusy ? 'disabled' : '') + ' style="margin-top:6px;font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:600;color:#F3EDDD;background:#15315C;border:none;border-radius:100px;padding:15px;cursor:pointer;opacity:' + (state.acctBusy ? '.6' : '1') + '">' + (state.acctBusy ? 'One moment…' : (isReg ? 'Create account' : 'Sign in')) + '</button>' +
+        '<button type="button" data-act="acctmode" style="background:none;border:none;cursor:pointer;text-align:center;font-size:13px;color:rgba(21,49,92,.6);text-decoration:underline">' + (isReg ? 'Already have an account? Sign in' : 'New here? Create an account') + '</button>' +
+        offlineNote + '</form></div>';
     }
 
     var tabs = [['orders', 'Orders'], ['saved', 'Saved'], ['profile', 'Profile']].map(function (t) {
@@ -1004,13 +1224,27 @@
         '<label style="display:block"><span style="font-family:\'Space Mono\',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:rgba(21,49,92,.55)">Shipping address</span><input name="address" value="' + esc(pr.address) + '" style="width:100%;margin-top:6px;font-size:15px;color:#15315C;background:#FBF6EA;border:1.5px solid rgba(21,49,92,.2);border-radius:12px;padding:13px 15px;outline:none"></label>' +
         '<button data-act="saveprofile" style="align-self:flex-start;margin-top:6px;font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;color:#F3EDDD;background:#15315C;border:none;border-radius:100px;padding:13px 28px;cursor:pointer">Save changes</button></div>';
     } else {
-      var ordersList = DEMO_ORDERS.slice();
-      if (state.orderNo) ordersList = [{ no: state.orderNo, items: 'Your latest order', date: 'Just now', status: 'Processing', total: '—' }].concat(ordersList);
       var statusChip = function (s) {
-        var c = s === 'Delivered' ? '46,138,134' : (s === 'Processing' ? '224,169,58' : '58,110,168');
+        var c = s === 'Delivered' || s === 'completed' ? '46,138,134' : (s === 'Processing' || s === 'pending' ? '224,169,58' : '58,110,168');
         return 'font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:5px 11px;border-radius:8px;background:rgba(' + c + ',.16);color:rgb(' + c + ')';
       };
-      body = '<div style="display:flex;flex-direction:column;gap:14px">' + ordersList.map(function (o) {
+      var ordersList;
+      if (apiMode && paymentsLive && window.OMG.api.hasToken()) {
+        ordersList = acctOrders.map(function (o) {
+          var itemNames = (o.items || []).map(function (i) { return i.title; }).join(' · ') || '—';
+          var tracking = [];
+          (o.fulfillments || []).forEach(function (f) {
+            (f.labels || []).forEach(function (l) { if (l.tracking_number) tracking.push(l.tracking_number); });
+          });
+          var when = o.created_at ? new Date(o.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+          return { no: '#' + o.display_id, items: itemNames + (tracking.length ? ' · Tracking: ' + tracking.join(', ') : ''), date: when, status: o.status || 'pending', total: fmt(Number(o.total) || 0) };
+        });
+      } else {
+        ordersList = DEMO_ORDERS.slice();
+        if (state.orderNo) ordersList = [{ no: state.orderNo, items: 'Your latest order', date: 'Just now', status: 'Processing', total: '—' }].concat(ordersList);
+      }
+      var emptyOrders = '<div style="text-align:center;padding:clamp(36px,6vw,70px) 0"><h2 style="font-family:\'Playfair Display\',serif;font-size:24px;font-weight:700">No orders yet.</h2><p style="font-size:15px;color:rgba(21,49,92,.6);margin-top:8px">Your order history will hang here.</p><button class="btn-primary" data-act="go" data-view="shop" style="margin-top:22px;font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;color:#F3EDDD;background:#15315C;border:none;border-radius:100px;padding:14px 30px;cursor:pointer">Browse the collection</button></div>';
+      body = ordersList.length === 0 ? emptyOrders : '<div style="display:flex;flex-direction:column;gap:14px">' + ordersList.map(function (o) {
         return '<div style="background:#FBF6EA;border:1px solid rgba(21,49,92,.12);border-radius:16px;padding:20px 22px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">' +
           '<div style="flex:1;min-width:180px"><div style="font-family:\'Space Mono\',monospace;font-size:14px;font-weight:700">' + esc(o.no) + '</div><div style="font-size:13px;color:rgba(21,49,92,.6);margin-top:3px">' + esc(o.items) + '</div></div>' +
           '<div style="font-size:13px;color:rgba(21,49,92,.6)">' + esc(o.date) + '</div>' +
@@ -1103,7 +1337,16 @@
       case 'searchpick': state.searchQ = node.getAttribute('data-q'); render(); break;
       case 'openinfo': state.infoKey = node.getAttribute('data-info'); state.contactSent = false; go('info'); break;
       case 'accttab': state.acctTab = node.getAttribute('data-tab'); render(); break;
-      case 'signout': acct.authed = false; saveAccount(); render(); break;
+      case 'acctmode':
+        state.acctMode = state.acctMode === 'register' ? 'signin' : 'register';
+        state.acctError = '';
+        render();
+        break;
+      case 'signout':
+        acct.authed = false; acct.customer = null; acctOrders = [];
+        if (apiMode) window.OMG.api.auth.logout();
+        saveAccount(); render();
+        break;
       case 'saveprofile':
         var wrap = node.closest('div');
         if (wrap) {
@@ -1112,8 +1355,18 @@
           acct.profile.email = emailEl ? emailEl.value : acct.profile.email;
           acct.profile.address = addrEl ? addrEl.value : acct.profile.address;
           saveAccount();
+          if (apiMode && window.OMG.api.hasToken()) {
+            var parts = String(acct.profile.name || '').split(' ');
+            window.OMG.api.auth.updateProfile({
+              first_name: parts[0] || '', last_name: parts.slice(1).join(' ')
+            }).catch(function () {});
+          }
         }
         showToast('Profile saved');
+        break;
+      case 'setrating':
+        state.reviewRating = parseInt(node.getAttribute('data-rating'), 10);
+        render();
         break;
     }
   });
@@ -1137,47 +1390,123 @@
     } else if (act === 'applypromo') {
       var code = (form.querySelector('[name=promo]').value || '').trim().toUpperCase();
       state.promo = form.querySelector('[name=promo]').value;
-      state.promoOk = code === 'STARRY';
-      render();
-      showToast(state.promoOk ? 'Code applied — 15% off' : 'That code didn\'t work');
+      if (apiMode && paymentsLive && cartHasVariants()) {
+        // server-side validation: sync the cart, apply the code, see if a
+        // discount actually landed
+        showToast('Checking code…');
+        var lines = state.cart.map(function (c) { return { variantId: c.variantId, qty: c.qty }; });
+        API.cart.sync(lines).then(function () {
+          return API.cart.applyPromo(code);
+        }).then(function (cart) {
+          var ok = Number(cart.discount_total) > 0;
+          state.promoOk = ok;
+          if (!ok) { API.cart.removePromos([code]).catch(function () {}); state.promo = ''; }
+          sv.cart = cart; sv.dirty = false;
+          render();
+          showToast(ok ? ('Code applied — you save ' + fmt(Number(cart.discount_total))) : 'That code didn\'t work');
+        }).catch(function () {
+          state.promoOk = false;
+          render();
+          showToast('That code didn\'t work');
+        });
+      } else {
+        state.promoOk = code === 'STARRY';
+        render();
+        showToast(state.promoOk ? 'Code applied — 15% off' : 'That code didn\'t work');
+      }
     } else if (act === 'checkout') {
       startCheckout(form);
     } else if (act === 'contact') {
       state.contactSent = true; render();
+    } else if (act === 'reviewform') {
+      var rp = findProduct(state.pid);
+      var rGet = function (n) { var el = form.querySelector('[name=' + n + ']'); return el ? el.value : ''; };
+      var review = {
+        display_name: rGet('rname').trim() || (acct.profile.name || 'Anonymous'),
+        email: rGet('remail').trim(),
+        rating: state.reviewRating || 5,
+        title: rGet('rtitle').trim(),
+        body: rGet('rbody').trim()
+      };
+      if (!review.email) delete review.email;
+      if (apiMode && paymentsLive) {
+        window.OMG.api.reviews.submit(rp.id, review).then(function () {
+          state.reviewSent = true; render();
+          showToast('Thanks — your review is awaiting moderation');
+        }).catch(function (e2) {
+          showToast(e2.message || 'Could not submit review');
+        });
+      } else {
+        state.reviewSent = true; render();
+        showToast('Offline preview — reviews need the backend');
+      }
     } else if (act === 'signin') {
-      var email = form.querySelector('[name=email]');
-      acct.authed = true;
-      if (email && email.value && !acct.profile.email) acct.profile.email = email.value;
-      saveAccount();
-      state.acctTab = 'orders';
-      render();
+      var emailEl2 = form.querySelector('[name=email]');
+      var passEl = form.querySelector('[name=password]');
+      var email2 = emailEl2 ? emailEl2.value.trim() : '';
+      var pass = passEl ? passEl.value : '';
+      if (apiMode && paymentsLive) {
+        state.acctBusy = true; state.acctError = ''; render();
+        var flow = state.acctMode === 'register'
+          ? window.OMG.api.auth.register(email2, pass,
+              (form.querySelector('[name=first]') || {}).value || '',
+              (form.querySelector('[name=last]') || {}).value || '')
+          : window.OMG.api.auth.login(email2, pass);
+        flow.then(function (customer) {
+          state.acctBusy = false;
+          if (!customer) throw new Error('no_customer');
+          adoptCustomer(customer);
+          saveAccount();
+          state.acctTab = 'orders';
+          render();
+          showToast('Welcome back, ' + (customer.first_name || 'friend'));
+        }).catch(function (err) {
+          state.acctBusy = false;
+          state.acctError = state.acctMode === 'register'
+            ? (err.message && /exists|identity/i.test(err.message) ? 'That email already has an account — try signing in.' : 'Could not create the account: ' + (err.message || 'try again'))
+            : 'Wrong email or password — or create an account if you\'re new.';
+          render();
+        });
+      } else {
+        acct.authed = true;
+        if (email2 && !acct.profile.email) acct.profile.email = email2;
+        saveAccount();
+        state.acctTab = 'orders';
+        render();
+      }
     }
   });
 
-  // boot: render immediately with whatever we have, then hydrate from
-  // Supabase if it's configured (falls back silently to demo data).
+  // boot: render immediately with the bundled demo catalog, then hydrate
+  // from the Medusa backend (js/api.js). If the backend is unreachable the
+  // demo catalog stays — the site never breaks.
   function boot() {
     render();
-    if (!DB.remote) return;
-    if (DB.remote.getConfig) {
-      DB.remote.getConfig().then(function (cfg) {
-        if (!cfg) return;
-        paymentsLive = !!cfg.razorpayKeyId;
-        rzpKeyId = cfg.razorpayKeyId || '';
-        if (cfg.freeShippingOver != null) shipFreeOver = Number(cfg.freeShippingOver);
-        if (cfg.flatShipping != null) shipFlat = Number(cfg.flatShipping);
-        if (paymentsLive && state.view === 'checkout') render();
-      });
-    }
-    if (DB.remote.loadStore) {
-      DB.remote.loadStore().then(function (remote) {
-        if (remote && remote.products && remote.products.length) {
-          store = remote;
-          currencySymbol = symbolFromCurrency(store.settings && store.settings.currency);
-          render();
+    if (!apiMode) return;
+    API.loadStore().then(function (remote) {
+      if (remote && remote.products && remote.products.length) {
+        store = remote;
+        paymentsLive = true;
+        currencySymbol = symbolFromCurrency(store.settings && store.settings.currency);
+        // re-key any cart lines saved against the demo catalog
+        state.cart.forEach(function (c) {
+          if (!c.variantId || !/^variant_/.test(String(c.variantId))) {
+            var match = null;
+            store.products.forEach(function (p) { if (p.name === c.name) match = p; });
+            if (match) { c.id = match.id; c.price = match.price; c.variantId = variantIdFor(match, c.size); }
+          }
+        });
+        saveCart();
+        markCartDirty();
+        render();
+        // restore a signed-in customer session, if any
+        if (API.hasToken()) {
+          API.auth.me().then(function (customer) {
+            if (customer) { adoptCustomer(customer); render(); }
+          });
         }
-      });
-    }
+      }
+    });
   }
   boot();
 })();
