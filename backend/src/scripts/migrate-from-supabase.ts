@@ -84,7 +84,7 @@ export default async function migrateFromSupabase({ container }: ExecArgs) {
     fields: ["id", "name"],
     filters: { name: SALES_CHANNEL_NAME },
   })
-  let salesChannel = channels[0]
+  let salesChannel: any = channels[0]
   if (!salesChannel) {
     logger.info("Creating sales channel…")
     const { result } = await createSalesChannelsWorkflow(container).run({
@@ -104,7 +104,7 @@ export default async function migrateFromSupabase({ container }: ExecArgs) {
     fields: ["id", "token", "title", "type"],
     filters: { type: "publishable", title: "Storefront" },
   })
-  let publishableKey = keys[0]
+  let publishableKey: any = keys[0]
   if (!publishableKey) {
     logger.info("Creating publishable API key…")
     const { result } = await createApiKeysWorkflow(container).run({
@@ -142,7 +142,7 @@ export default async function migrateFromSupabase({ container }: ExecArgs) {
     fields: ["id", "name"],
     filters: { name: "India & Worldwide" },
   })
-  let region = regions[0]
+  let region: any = regions[0]
   if (!region) {
     logger.info("Creating region…")
     const { result } = await createRegionsWorkflow(container).run({
@@ -180,7 +180,7 @@ export default async function migrateFromSupabase({ container }: ExecArgs) {
     fields: ["id", "name"],
     filters: { name: STOCK_LOCATION_NAME },
   })
-  let stockLocation = locations[0]
+  let stockLocation: any = locations[0]
   if (!stockLocation) {
     logger.info("Creating stock location…")
     const { result } = await createStockLocationsWorkflow(container).run({
@@ -434,6 +434,7 @@ export default async function migrateFromSupabase({ container }: ExecArgs) {
       const legacy = sb.products.find((p: any) => p.id === legacyId)
       const qty = legacy ? legacy.inventory : 0
       for (const ii of v.inventory_items || []) {
+        if (!ii) continue
         levels.push({
           location_id: stockLocation.id,
           inventory_item_id: ii.inventory_item_id,
