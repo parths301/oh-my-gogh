@@ -49,6 +49,7 @@ services:
       MEDUSA_WORKER_MODE: server
       DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD}@postgres:5432/medusa_omg
       REDIS_URL: redis://redis:6379
+      SESSION_REDIS_URL: redis://redis:6379   # redis:7 — fine here; hangs on redis 8.x (see medusa-config.ts)
     ports:
       - "127.0.0.1:9000:9000"   # host nginx proxies to this — never public
 
