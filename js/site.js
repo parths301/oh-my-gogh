@@ -530,7 +530,7 @@
       '</div>' +
       '<div style="max-width:1280px;margin:40px auto 0;position:relative;border-top:1px solid rgba(243,237,221,.16);padding-top:22px;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;font-family:\'Space Mono\',monospace;font-size:11px;letter-spacing:.06em;color:rgba(243,237,221,.55)">' +
       '<span>© 2026 Oh my Gogh! — Art Lifestyle Brand</span>' +
-      '<a class="foot-link" href="admin.html" style="text-decoration:none;color:rgba(243,237,221,.55)">Studio admin ↗</a>' +
+      '<a class="foot-link" href="' + esc(((window.OMG_CONFIG && window.OMG_CONFIG.medusaUrl) || '') + '/app') + '" target="_blank" rel="noopener" style="text-decoration:none;color:rgba(243,237,221,.55)">Studio admin ↗</a>' +
       '<span>Made with too much paint.</span></div>' +
       '</footer>';
   }
