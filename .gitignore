@@ -3,3 +3,4 @@
 .secrets/
 .env*
 supabase/.temp/
+deploy/.env.production

@@ -1,0 +1,74 @@
+# Oh my Gogh! — production stack for the VPS
+#   docker compose --env-file .env.production up -d
+#
+# Nginx + certbot run on the HOST (see scripts/provision.sh), reverse-
+# proxying api.<domain> to :9000 and serving the static storefront.
+# Postgres/Redis are never exposed beyond the compose network.
+
+name: ohmygogh
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: medusa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env.production}
+      POSTGRES_DB: medusa_omg
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medusa -d medusa_omg"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # HTTP API + admin dashboard
+  medusa:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    env_file: .env.production
+    environment:
+      MEDUSA_WORKER_MODE: server
+      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD}@postgres:5432/medusa_omg
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "127.0.0.1:9000:9000"   # host nginx proxies to this — never public
+
+  # Background worker: subscribers, scheduled jobs (abandoned cart,
+  # low-inventory alerts), long-running workflows
+  medusa-worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    env_file: .env.production
+    environment:
+      MEDUSA_WORKER_MODE: worker
+      DISABLE_MEDUSA_ADMIN: "true"
+      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD}@postgres:5432/medusa_omg
+      REDIS_URL: redis://redis:6379
+
+volumes:
+  pgdata:
+  redisdata:

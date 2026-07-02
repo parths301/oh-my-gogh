@@ -24,6 +24,34 @@ module.exports = defineConfig({
     { resolve: './src/modules/brand' },
     { resolve: './src/modules/review' },
     { resolve: './src/modules/wishlist' },
+    // Redis-backed infrastructure when REDIS_URL is set (always in
+    // production — required for the server+worker split); falls back to
+    // the in-memory/local providers for a bare-bones local run.
+    ...(process.env.REDIS_URL
+      ? [
+          {
+            resolve: '@medusajs/event-bus-redis',
+            options: { redisUrl: process.env.REDIS_URL },
+          },
+          {
+            resolve: '@medusajs/workflow-engine-redis',
+            options: { redis: { url: process.env.REDIS_URL } },
+          },
+          {
+            resolve: '@medusajs/medusa/locking',
+            options: {
+              providers: [
+                {
+                  resolve: '@medusajs/locking-redis',
+                  id: 'locking-redis',
+                  is_default: true,
+                  options: { redisUrl: process.env.REDIS_URL },
+                },
+              ],
+            },
+          },
+        ]
+      : []),
     // Payments: Razorpay (test keys until the user signs off on live keys)
     {
       resolve: '@medusajs/medusa/payment',
