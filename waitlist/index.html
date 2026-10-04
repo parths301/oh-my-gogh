@@ -26,6 +26,7 @@
   <link rel="preload" href="/fonts/playfair.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/css/waitlist.css">
+  <link rel="stylesheet" href="/css/marketplace.css">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Oh my Gogh!","url":"https://ohmygogh.com/","logo":"https://ohmygogh.com/apple-touch-icon.png","description":"An art lifestyle brand for people who feel in color."}</script>
   <script src="/js/waitlist.js" defer></script>
 </head>
@@ -38,7 +39,12 @@
         <img src="/assets/omg-emblem-240.webp" width="40" height="40" alt="">
         <span>Oh my Gogh!</span>
       </a>
-      <a class="top-link" href="#join">Join the waitlist</a>
+      <nav class="mainnav" aria-label="Main">
+        <a href="/shop">Shop</a>
+        <a href="/artists">Artists</a>
+        <a href="/signup">Sell with us</a>
+        <a class="top-link" href="#join">Join the waitlist</a>
+      </nav>
     </div>
   </header>
 
@@ -95,6 +101,15 @@
       </div>
     </section>
 
+    <section class="market-cta" aria-labelledby="artists-title">
+      <div class="wrap">
+        <p class="eyebrow">For artists</p>
+        <h2 id="artists-title">Make it? Sell it here.</h2>
+        <p>Paintings, prints, ceramics, jewellery, apparel, digital work: any kind of art is welcome. Create an artist profile, list your pieces and we will review them before they go on show. Checkout is not open yet, so this is the moment to set up your page.</p>
+        <p class="actions"><a class="btn btn-gold" href="/signup">Create an artist account</a> <a class="btn btn-ghost" href="/shop">Browse the shop</a></p>
+      </div>
+    </section>
+
     <section class="join" id="join" aria-labelledby="join-title">
       <div class="wrap">
         <p class="eyebrow">The waitlist</p>
@@ -128,6 +143,7 @@
       <nav aria-label="Legal">
         <a href="/privacy">Privacy</a>
         <a href="/terms">Terms</a>
+        <a href="/terms#sellers">Seller terms</a>
       </nav>
     </div>
   </footer>

@@ -7,3 +7,5 @@ deploy/.env.production
 
 .wrangler/
 node_modules/
+.dev.vars
+.dev.vars.*

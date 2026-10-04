@@ -16,3 +16,14 @@
 
 /js/*
   Cache-Control: public, max-age=3600
+
+/admin
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-store
+
+/dashboard
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: no-store
+
+/login
+  X-Robots-Tag: noindex, nofollow
