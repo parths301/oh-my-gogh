@@ -20,19 +20,19 @@ PBKDF2_ITERATIONS = "100000"
 # Existing waitlist store (unchanged). Needed here because a wrangler.toml replaces dashboard bindings.
 [[kv_namespaces]]
 binding = "WAITLIST"
-id = "REPLACE_WITH_PRODUCTION_KV_NAMESPACE_ID"
-preview_id = "REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID"
+id = "f94f4a965f0f42ebb08225e85b66ffbc"
+preview_id = "d87d1d5af8d1459c84b48a086ed037c2"
 
 # Marketplace database: artists, products, sessions.
 [[d1_databases]]
 binding = "DB"
 database_name = "ohmygogh-marketplace"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
-preview_database_id = "REPLACE_WITH_D1_PREVIEW_DATABASE_ID"
+database_id = "674f8c20-77a9-46f6-b9c4-2920fb82013e"
+preview_database_id = "674f8c20-77a9-46f6-b9c4-2920fb82013e"
 migrations_dir = "migrations"
 
 # Marketplace images: product photos and avatars.
 [[r2_buckets]]
 binding = "IMAGES"
 bucket_name = "ohmygogh-images"
-preview_bucket_name = "ohmygogh-images-preview"
+preview_bucket_name = "ohmygogh-images"
