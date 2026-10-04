@@ -4,3 +4,6 @@
 .env*
 supabase/.temp/
 deploy/.env.production
+
+.wrangler/
+node_modules/

@@ -1,0 +1,15 @@
+# Cloudflare Pages config SNIPPET. Optional.
+#
+# IMPORTANT: if you rename this file to wrangler.toml and commit it, Cloudflare treats
+# the file as the single source of truth for the project and the dashboard bindings
+# screen becomes read-only. The default path in README_DEPLOY.md is to bind KV in the
+# dashboard, so leave this file named .example unless you choose the config-as-code route.
+
+name = "ohmygogh"
+pages_build_output_dir = "waitlist"
+compatibility_date = "2024-09-23"
+
+[[kv_namespaces]]
+binding = "WAITLIST"
+id = "REPLACE_WITH_PRODUCTION_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID"

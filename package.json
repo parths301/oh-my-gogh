@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "python3 -m http.server 4321",
     "backend:dev": "npm --prefix backend run dev",
-    "backend:build": "npm --prefix backend run build"
+    "backend:build": "npm --prefix backend run build",
+    "waitlist:dev": "npx --yes wrangler@3 pages dev waitlist --kv WAITLIST --compatibility-date=2024-09-23"
   }
 }
