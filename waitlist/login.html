@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Artist log in | Oh my Gogh!</title>
+  <meta name="description" content="Log in to your Oh my Gogh! artist account.">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#15315C">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/playfair.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/waitlist.css">
+  <link rel="stylesheet" href="/css/marketplace.css">
+  <script src="/js/market.js" defer></script>
+  <script src="/js/login.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Oh my Gogh! home">
+        <img src="/assets/omg-emblem-240.webp" width="40" height="40" alt="">
+        <span>Oh my Gogh!</span>
+      </a>
+      <nav class="mainnav" aria-label="Main">
+        <a href="/shop">Shop</a>
+        <a href="/artists">Artists</a>
+        <a href="/signup">Sell with us</a>
+        <a class="top-link" href="/login">Artist log in</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="form-page">
+      <div class="wrap">
+        <p class="eyebrow">For artists</p>
+        <h1>Log in</h1>
+        <p class="lead">Manage your profile and your listings.</p>
+        <noscript><p class="noscript">This form needs JavaScript. Please turn it on in your browser to log in.</p></noscript>
+        <form class="form panel" id="login-form" novalidate>
+          <div class="row"><label for="email">Email</label><input class="field" id="email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" required><p class="err" id="err-email"></p></div>
+          <div class="row"><label for="password">Password</label><input class="field" id="password" name="password" type="password" autocomplete="current-password" maxlength="200" required><p class="err" id="err-password"></p></div>
+          <div class="actions"><button class="btn btn-gold" type="submit">Log in</button></div>
+          <p class="form-msg" id="form-msg" role="status" aria-live="polite"></p>
+        </form>
+        <p class="switch">New here? <a href="/signup">Apply to sell on Oh my Gogh!</a> Forgot your password? Email <a href="mailto:hello@ohmygogh.com">hello@ohmygogh.com</a> from your account address and we will help (automatic reset is coming).</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <p>&copy; 2026 Oh my Gogh!</p>
+      <nav aria-label="Legal">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/terms#sellers">Seller terms</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

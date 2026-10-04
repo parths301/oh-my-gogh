@@ -1,0 +1,38 @@
+# Cloudflare Pages config for the marketplace branch.
+#
+# READ BEFORE MERGING: a committed wrangler.toml makes Cloudflare treat this file as the
+# source of truth for the Pages project, and the dashboard bindings screen becomes read-only.
+# Replace every REPLACE_WITH_... value (see DEPLOY_MARKETPLACE.md) before a deployment of this
+# branch can work. Do NOT merge this file into waitlist-launch until the resources exist.
+#
+# Secrets (ADMIN_TOKEN) are never put in this file. Set them in the dashboard or with
+# `wrangler pages secret put`.
+
+name = "ohmygogh"
+pages_build_output_dir = "waitlist"
+compatibility_date = "2024-09-23"
+
+[vars]
+SITE_URL = "https://ohmygogh.com"
+# PBKDF2 iterations for NEW password hashes (Workers allow at most 100000).
+PBKDF2_ITERATIONS = "100000"
+
+# Existing waitlist store (unchanged). Needed here because a wrangler.toml replaces dashboard bindings.
+[[kv_namespaces]]
+binding = "WAITLIST"
+id = "REPLACE_WITH_PRODUCTION_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_PREVIEW_KV_NAMESPACE_ID"
+
+# Marketplace database: artists, products, sessions.
+[[d1_databases]]
+binding = "DB"
+database_name = "ohmygogh-marketplace"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+preview_database_id = "REPLACE_WITH_D1_PREVIEW_DATABASE_ID"
+migrations_dir = "migrations"
+
+# Marketplace images: product photos and avatars.
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "ohmygogh-images"
+preview_bucket_name = "ohmygogh-images-preview"

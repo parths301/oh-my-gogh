@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sell on Oh my Gogh! | Artist sign up</title>
+  <meta name="description" content="Create an artist account on Oh my Gogh! and list your work: paintings, prints, ceramics, jewellery, apparel, digital and more.">
+  <link rel="canonical" href="https://ohmygogh.com/signup">
+  <meta name="robots" content="index,follow">
+  <meta name="theme-color" content="#15315C">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/playfair.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/waitlist.css">
+  <link rel="stylesheet" href="/css/marketplace.css">
+  <script src="/js/market.js" defer></script>
+  <script src="/js/signup.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Oh my Gogh! home">
+        <img src="/assets/omg-emblem-240.webp" width="40" height="40" alt="">
+        <span>Oh my Gogh!</span>
+      </a>
+      <nav class="mainnav" aria-label="Main">
+        <a href="/shop">Shop</a>
+        <a href="/artists">Artists</a>
+        <a href="/signup">Sell with us</a>
+        <a class="top-link" href="/login">Artist log in</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="form-page">
+      <div class="wrap">
+        <p class="eyebrow">For artists</p>
+        <h1>Sell your work on Oh my Gogh!</h1>
+        <p class="lead">Create your artist account and profile in one step, then list your work. Every artist and every listing is reviewed by our team before it appears on the site. Paintings, prints, ceramics, jewellery, apparel, digital work: any category is welcome.</p>
+        <noscript><p class="noscript">This form needs JavaScript. Please turn it on in your browser to apply.</p></noscript>
+        <form class="form panel" id="signup-form" novalidate autocomplete="on">
+          <div class="two">
+            <div class="row"><label for="name">Artist or studio name</label><input class="field" id="name" name="name" type="text" maxlength="60" autocomplete="name" required><p class="err" id="err-name"></p></div>
+            <div class="row"><label for="handle">Handle</label><input class="field" id="handle" name="handle" type="text" maxlength="30" autocapitalize="none" spellcheck="false" aria-describedby="hint-handle"><p class="hint" id="hint-handle">Your page will be at ohmygogh.com/artists/<span id="handle-preview">your-handle</span>. Letters, numbers and hyphens. It cannot be changed later.</p><p class="err" id="err-handle"></p></div>
+          </div>
+          <div class="row"><label for="email">Email</label><input class="field" id="email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="254" required><p class="err" id="err-email"></p></div>
+          <div class="row"><label for="password">Password</label><input class="field" id="password" name="password" type="password" autocomplete="new-password" minlength="10" maxlength="128" required aria-describedby="hint-pw"><p class="hint" id="hint-pw">At least 10 characters. A few random words works well. Do not reuse a password from another site.</p><p class="err" id="err-password"></p></div>
+          <div class="row"><label for="category">What do you make?</label><input class="field" id="category" name="category" type="text" list="cat-list" maxlength="40" required aria-describedby="hint-cat"><p class="hint" id="hint-cat">Your main category, in your own words. Pick a suggestion or type your own.</p>
+            <datalist id="cat-list">
+              <option value="paintings"><option value="prints"><option value="drawings"><option value="illustration"><option value="photography">
+              <option value="ceramics"><option value="sculpture"><option value="jewellery"><option value="apparel"><option value="textiles">
+              <option value="stationery"><option value="home and decor"><option value="digital"><option value="other">
+            </datalist>
+            <p class="err" id="err-category"></p></div>
+          <div class="row"><label for="bio">About you (optional)</label><textarea class="field" id="bio" name="bio" maxlength="1200" rows="4"></textarea><p class="err" id="err-bio"></p></div>
+          <div class="hp" aria-hidden="true"><label>Leave this field empty <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+          <div class="row">
+            <label class="check" for="accept_terms"><input type="checkbox" id="accept_terms" name="accept_terms" required><span>I am at least 18, I have read the <a href="/terms#sellers" target="_blank" rel="noopener">seller terms</a> and the <a href="/privacy" target="_blank" rel="noopener">privacy notice</a>, and I own or have the right to sell everything I list.</span></label>
+            <p class="err" id="err-accept_terms"></p>
+          </div>
+          <div class="actions"><button class="btn btn-gold" type="submit">Create my artist account</button></div>
+          <p class="form-msg" id="form-msg" role="status" aria-live="polite"></p>
+        </form>
+        <p class="switch">Already have an account? <a href="/login">Log in</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <p>&copy; 2026 Oh my Gogh!</p>
+      <nav aria-label="Legal">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/terms#sellers">Seller terms</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Artist dashboard | Oh my Gogh!</title>
+  <meta name="description" content="Manage your artist profile and listings.">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#15315C">
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/playfair.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/waitlist.css">
+  <link rel="stylesheet" href="/css/marketplace.css">
+  <script src="/js/market.js" defer></script>
+  <script src="/js/dashboard.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="Oh my Gogh! home">
+        <img src="/assets/omg-emblem-240.webp" width="40" height="40" alt="">
+        <span>Oh my Gogh!</span>
+      </a>
+      <nav class="mainnav" aria-label="Main">
+        <a href="/shop">Shop</a>
+        <a href="/artists">Artists</a>
+        <a href="/signup">Sell with us</a>
+        <a class="top-link" href="/login">Artist log in</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="dash">
+      <div class="wrap">
+        <noscript><p class="noscript">The dashboard needs JavaScript. Please turn it on in your browser.</p></noscript>
+        <div id="app" aria-live="polite"><p>Loading your dashboard...</p></div>
+        <datalist id="cat-list">
+          <option value="paintings"><option value="prints"><option value="drawings"><option value="illustration"><option value="photography">
+          <option value="ceramics"><option value="sculpture"><option value="jewellery"><option value="apparel"><option value="textiles">
+          <option value="stationery"><option value="home and decor"><option value="digital"><option value="other">
+        </datalist>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <p>&copy; 2026 Oh my Gogh!</p>
+      <nav aria-label="Legal">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/terms#sellers">Seller terms</a>
+      </nav>
+    </div>
+  </footer>
+</body>
+</html>
