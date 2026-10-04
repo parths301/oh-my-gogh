@@ -28,7 +28,6 @@
     try { return sessionStorage.getItem(TOKEN_KEY) || ''; }
     catch (e) { return ''; }
   }
-
   function writeToken(value) {
     try {
       if (value) sessionStorage.setItem(TOKEN_KEY, value);
@@ -55,24 +54,20 @@
       return { ok: false, status: 0, data: { message: 'We could not reach the server. Please check your connection and try again.' } };
     });
   }
-
   function currentTab() {
     for (var i = 0; i < TABS.length; i++) if (TABS[i].id === active) return TABS[i];
     return TABS[0];
   }
-
   function badgeClass(status) {
     if (status === 'approved' || status === 'published') return 'badge badge-ok';
     if (status === 'pending' || status === 'draft') return 'badge badge-pending';
     if (status === 'rejected' || status === 'suspended') return 'badge badge-bad';
     return 'badge';
   }
-
   function badge(status, label) {
     var name = O.titleCase(status || 'unknown');
     return O.h('span', { class: badgeClass(status), text: name, 'aria-label': label + ' ' + name });
   }
-
   function fmtDate(iso) {
     if (!iso) return '';
     var d = new Date(iso);
@@ -80,46 +75,38 @@
     try { return d.toLocaleDateString('en', { year: 'numeric', month: 'short', day: 'numeric' }); }
     catch (e) { return String(iso).slice(0, 10); }
   }
-
   function joinParts(parts) {
     var out = [];
     for (var i = 0; i < parts.length; i++) if (parts[i]) out.push(parts[i]);
     return out.join(' · ');
   }
-
   function tagText(tags) {
     if (!tags || !tags.length) return '';
     var out = [];
     for (var i = 0; i < tags.length; i++) if (tags[i]) out.push(String(tags[i]));
     return out.join(', ');
   }
-
   function productCount(n) {
     var c = Number(n);
     if (!isFinite(c) || c < 0) c = 0;
     return c === 1 ? '1 product' : (c + ' products');
   }
-
   function safeSrc(url) {
     /* Same-origin image paths only, so a bad API value cannot become a remote or script URL. */
     if (typeof url !== 'string' || url.charAt(0) !== '/' || url.indexOf('//') !== -1) return '';
     if (!/^\/[A-Za-z0-9._~/-]+$/.test(url)) return '';
     return url;
   }
-
   function publicHref(slug) {
     if (typeof slug !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) return '';
     return '/p/' + slug;
   }
-
   function safeId(id) {
     return typeof id === 'string' && /^[a-z0-9_-]{1,40}$/.test(id) ? id : '';
   }
-
   function serverMessage(r, fallback) {
     return (r && r.data && r.data.message) || fallback;
   }
-
   function renderGate(message, state) {
     O.clear(app);
     var msg = O.h('p', { class: 'form-msg', id: 'gate-msg', role: 'status', 'aria-live': 'polite', 'data-state': state || '' });
@@ -128,7 +115,7 @@
       class: 'field', id: 'admin-token', type: 'password', name: 'token', autocomplete: 'off',
       maxlength: '200', required: true, 'aria-label': 'Admin token'
     });
-    app.appendChild(O.h('form', { class: 'form panel', method: 'post', action: '/admin', on: { submit: onGate } },
+    app.appendChild(O.h('form', { class: 'form panel', method: 'post', on: { submit: onGate } },
       O.h('div', { class: 'row' },
         O.h('label', { for: 'admin-token', text: 'Admin token' }),
         input
@@ -140,7 +127,6 @@
     ));
     if (message) input.focus();
   }
-
   function onGate(e) {
     e.preventDefault();
     var input = document.getElementById('admin-token');
@@ -158,7 +144,6 @@
     }
     boot();
   }
-
   function renderBlocked(text) {
     O.clear(app);
     app.appendChild(O.h('div', { class: 'adm-card' },
@@ -169,7 +154,6 @@
       )
     ));
   }
-
   function deny() {
     view++;
     writeToken('');
@@ -177,7 +161,6 @@
     active = 'artists-pending';
     renderGate('That token is not valid', 'error');
   }
-
   function logout() {
     view++;
     writeToken('');
@@ -185,7 +168,6 @@
     active = 'artists-pending';
     renderGate('', '');
   }
-
   function boot() {
     var seen = ++view;
     if (!readToken()) { renderGate('', ''); return; }
@@ -200,7 +182,6 @@
       else loadTab();
     });
   }
-
   function renderShell() {
     var tab = currentTab();
     O.clear(app);
@@ -225,7 +206,6 @@
       class: 'tabpanel', role: 'tabpanel', id: 'adm-panel', 'aria-labelledby': 'tab-' + tab.id
     }, status, list));
   }
-
   function onTabKey(e) {
     var dir = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
     if (!dir && e.key !== 'Home' && e.key !== 'End') return;
@@ -235,7 +215,6 @@
     var next = e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : (idx + dir + TABS.length) % TABS.length;
     selectTab(TABS[next].id);
   }
-
   function selectTab(id) {
     if (id === active) return;
     active = id;
@@ -246,7 +225,6 @@
     if (btn) btn.focus();
     loadTab();
   }
-
   function loadTab() {
     var seen = view;
     var seq = ++fetchSeq;
@@ -272,7 +250,6 @@
       paint(tab.kind, items);
     });
   }
-
   function paint(kind, items) {
     var list = document.getElementById('adm-list');
     var status = document.getElementById('adm-status');
@@ -289,7 +266,6 @@
     }
     for (var i = 0; i < items.length; i++) list.appendChild(kind === 'artists' ? artistCard(items[i]) : productCard(items[i]));
   }
-
   function doneText(kind, action) {
     var noun = kind === 'artists' ? 'Artist' : 'Listing';
     if (action === 'approve') return noun + ' approved.';
@@ -297,7 +273,6 @@
     if (action === 'suspend') return 'Artist suspended.';
     return noun + ' set back to pending.';
   }
-
   function runAction(kind, id, action, needsNote, noteEl, msgEl, btns) {
     var note = String(noteEl.value || '').replace(/^\s+|\s+$/g, '');
     if (needsNote && !note) {
@@ -325,7 +300,6 @@
       loadTab();
     });
   }
-
   function actionRow(kind, id, specs) {
     var note = O.h('input', {
       class: 'field', type: 'text', maxlength: '300', autocomplete: 'off', 'aria-label': 'Note for the artist'
@@ -357,7 +331,6 @@
     }
     return nodes;
   }
-
   function artistCard(a) {
     var src = safeSrc(a.avatar_url);
     var meta = joinParts([a.category ? O.titleCase(a.category) : '', a.location || '', tagText(a.tags)]);
@@ -381,7 +354,6 @@
       ])
     );
   }
-
   function imageList(p) {
     var items = [];
     var images = p.images || [];
@@ -392,7 +364,6 @@
     }
     return items.length ? O.h('ul', { class: 'images' }, items) : null;
   }
-
   function productCard(p) {
     var who = joinParts([p.artist_name || '', p.artist_handle ? '@' + p.artist_handle : '']);
     var stock = (p.stock == null ? 0 : p.stock) + ' in stock';
@@ -422,6 +393,5 @@
       ])
     );
   }
-
   boot();
 })();
